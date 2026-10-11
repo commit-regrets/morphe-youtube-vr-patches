@@ -125,6 +125,7 @@ from the device.
 | the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
 | every injected block in Application.onCreate is inserted at index 0, so the **last** insertion runs **first** | ordering is inverted: the verbose-log gate must be the last edit this patch makes, and a dump emitted before the gate opens must be re-emitted once it does (storeReady/dumpLogged in SponsorBlockSettings) |
+| a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | measured: the verbose row read ON across a screen rebuild and an update install, while the extension printed `patch settings (…): the screen's switches are not there yet`. A row whose value the extension must read has to write it itself (`CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging`); the master/markers switches still rely on the widget and are under the same suspicion |
 
 ## SponsorBlock notes
 
@@ -145,27 +146,26 @@ from the device.
 The extension prints nothing unless its one gate is open. `VerboseLog` owns that gate and everything
 above hangs off it.
 
-* **The row.** `Verbose logging`, key `ytvr_mod_verbose_logging`, a `SwitchPreference` on the
-  "Patch settings" hub, off by default (in the extension and in the row's own
-  `android:defaultValue`). It is live -- a `SharedPreferences` listener refreshes the gate's field, so
-  a toggle takes effect on the next log line -- and its stored value is sticky across
-  `adb install -r`.
+* **The row, and who writes it.** `Verbose logging`, key `ytvr_mod_verbose_logging`, a
+  `SwitchPreference` on the "Patch settings" hub, off by default (in the extension and in the row's
+  own `android:defaultValue`). The value is written by `CategoryRows`, not by the widget -- see the
+  trap below -- so it lands in `<package>_preferences`, the file the gate reads, and the gate follows
+  the tap immediately (`VerboseLog.setEnabled`). The row renders the gate's *effective* state, so a
+  development build shows it ON, and the stored value is sticky across `adb install -r`.
 * **`-Diagnostics` also opens it.** The `Verbose diagnostics (development only)` option selects which
   hooks are installed *and* the gate's initial default, so a development build logs from its first
   line with no tap, while a build that never asks for the diagnostics (CI, a release, an end user
-  applying the bundle) is silent. The row outranks the option in both directions.
+  applying the bundle) is silent. A stored choice outranks the option in both directions.
 * **One gate.** `VerboseLog.log(tag, message)` is the only place in `extensions/src` that prints;
   every class's `log(String)` is a one-line delegation to it, and `android.util.Log` is used nowhere in
   the extension. A closed gate reads one volatile field and returns before the message is formatted.
 * **Testing the silent default** on a device that has had the row on needs
   `adb shell pm clear app.morphe.android.youtube` (the sticky value survives reinstall; this wipes
   SponsorBlock settings too) or a toggle-off.
-* **A `-Diagnostics` build logs while its row still reads off.** That path only sets the gate's
-  *default*; the row renders the *stored* preference, and nothing has stored one -- so the switch
-  shows "off" until it is first touched. One tap makes the two agree, and from then on the stored
-  choice outranks the build default permanently, in both directions. The default is deliberately not
-  written into the preferences: a later plain install would then keep logging until it was toggled
-  off, which is the one thing this gate exists to prevent.
+* **A development build lists its preference files** (`VerboseLog.logPreferenceFiles`, only when the
+  gate is open): the *names* of everything in `shared_prefs/`. That line exists because a switch on
+  these screens can show a new state while our file never receives it, and the only way to tell
+  "never written" from "written somewhere else" is to look.
 
 ## Project state and open problems
 
