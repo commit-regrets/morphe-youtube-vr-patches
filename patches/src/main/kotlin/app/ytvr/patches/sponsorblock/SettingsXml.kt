@@ -1,0 +1,461 @@
+package app.ytvr.patches.sponsorblock
+
+import app.morphe.patcher.patch.PatchException
+import org.w3c.dom.Element
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.OutputKeys
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
+
+/**
+ * Restructures the app's preferences XML for the "Mod settings" hub, Morphe-style:
+ *
+ *   Settings -> "Mod settings" (row) -> hub screen with one entry per feature
+ *             ("SponsorBlock" today) -> that feature's settings screen.
+ *
+ * The app builds its settings from `res/xml/settings_prefs.xml` (immersive) and
+ * `res/xml/panel2_settings_prefs.xml` (panel mode), one `Preference` per element, and navigates
+ * its own sub-screens by comparing the clicked row's key and swapping a whole fragment in. One of
+ * those keys is `developer_settings`, whose screen inflates `res/xml/developer_settings_prefs.xml`
+ * -- a screen whose list row the app removes at startup, i.e. dead UI. This patch:
+ *
+ * - adds a `Mod settings` row (key `ytvr_mod_settings`) to the top of both main lists,
+ * - replaces the *contents* of `developer_settings_prefs.xml` with the hub's entry rows, and
+ * - replaces the *contents* of a second dead XML -- the generic preferences screen of the app's
+ *   unused framework `PreferenceFragment`, passed in as [sbScreenXmlId] (mined from the bytecode,
+ *   resolved back to a file through `res/values/public.xml`) -- with the SponsorBlock rows.
+ *
+ * The companion bytecode edits in SponsorBlockPatch.kt (all structural, no names) then re-key the
+ * click handlers, branch the reused fragment's XML choice and title on a fragment argument, and
+ * add the hub's click handler. No class is created and no resource id is minted: both files and
+ * their ids already exist, and the switches keep the same keys, persisting to the same
+ * `<package>_preferences` file the extension reads.
+ *
+ * Why XML rather than building the rows from code: R8 keeps the androidx *class names* (inflating
+ * from XML needs them) but renames their *members* -- `androidx.preference.Preference`'s `setTitle`,
+ * `setKey`, `setSummary` and `addPreference` are `L(...)`, `X(...)` and so on in this APK. Reflection
+ * by name silently did nothing, which is what the "I don't find Mod settings anywhere" report was.
+ * XML attributes carry no such risk.
+ *
+ * The files are *found*, never guessed: a bytecode patch's `fileWorkspace` is a scratch directory,
+ * not the decoded resource tree, which lives beside it under `apk/resources/package_<n>/`. A wrong
+ * guess used to mean a silent no-op, so a miss now throws.
+ */
+internal fun restructureSettingsXmls(
+    patchWorkspace: File,
+    sbScreenXmlId: Int,
+    categoryDefaults: Map<String, String>,
+) {
+    val sessionRoot = patchWorkspace.parentFile ?: patchWorkspace
+    val mainFiles = MAIN_SETTINGS_XML_NAMES.flatMap { name -> findFiles(sessionRoot, name, 0) }
+    if (mainFiles.isEmpty()) {
+        throw PatchException(
+            "Mod settings: no settings preferences XML under " + sessionRoot.absolutePath +
+                "; looked for " + MAIN_SETTINGS_XML_NAMES.joinToString(),
+        )
+    }
+    mainFiles.forEach { addModSettingsEntry(it) }
+    val hubFiles = findFiles(sessionRoot, HUB_XML_NAME, 0)
+    if (hubFiles.isEmpty()) {
+        throw PatchException(
+            "Mod settings: no $HUB_XML_NAME under " + sessionRoot.absolutePath +
+                " -- the hub has nothing to be inflated from",
+        )
+    }
+    hubFiles.forEach { fillHubScreen(it) }
+    val sbName = resolveResourceName(sessionRoot, sbScreenXmlId)
+    val sbFiles = findFiles(sessionRoot, "$sbName.xml", 0)
+    if (sbFiles.isEmpty()) {
+        throw PatchException(
+            "Mod settings: the mined xml id ${"0x%08x".format(sbScreenXmlId)} resolves to " +
+                "'$sbName' but no $sbName.xml exists under " + sessionRoot.absolutePath,
+        )
+    }
+    sbFiles.forEach { fillSponsorBlockScreen(it, categoryDefaults) }
+    // The behaviour pickers are `ListPreference` rows, so their `entries`/`entryValues` have to
+    // exist as arrays. They go into the values file that already holds arrays rather than a new
+    // one, so the encoder only has to accept new *names* in a file it already knows.
+    addBehaviourArrays(sbFiles.first(), categoryDefaults)
+    findFiles(sessionRoot, DEPRECATED_HOLDER_LAYOUT_NAME, 0)
+        .forEach { moveHolderBackButtonToLeft(it) }
+}
+
+private val MAIN_SETTINGS_XML_NAMES = listOf("settings_prefs.xml", "panel2_settings_prefs.xml")
+private const val HUB_XML_NAME = "developer_settings_prefs.xml"
+
+/**
+ * The settings holder layout whose back arrow renders at the card's top-center -- directly below
+ * Horizon OS's own panel back affordance, which floats above the card's top edge. Two identical
+ * arrows stacked reads as "which one?"; the card's arrow moves to the top-left corner (the
+ * standard back position) so the two controls read as different things.
+ */
+private const val DEPRECATED_HOLDER_LAYOUT_NAME = "deprecated_settings_holder_fragment.xml"
+
+/**
+ * Moves the back-button container of one holder layout from top-center to the top-left corner.
+ * Idempotence is by the attribute itself.
+ */
+private fun moveHolderBackButtonToLeft(xml: File) = editXml(xml) { root ->
+    val containers = root.getElementsByTagName("*")
+    var found = false
+    for (index in 0 until containers.length) {
+        val element = containers.item(index) as? Element ?: continue
+        val id = element.getAttribute("android:id")
+        if (id.isNotEmpty() && id.substringAfterLast('/') == "back_button_container") {
+            element.setAttribute("android:layout_centerHorizontal", "false")
+            element.setAttribute("android:layout_alignParentStart", "true")
+            element.setAttribute("android:layout_marginStart", "16dp")
+            element.setAttribute("android:layout_marginTop", "16dp")
+            found = true
+        }
+    }
+    if (!found) {
+        throw PatchException("Mod settings: no back button to move in ${xml.name}")
+    }
+}
+
+
+
+/** Maps a resource id to its name through the decode's `res/values/public.xml` files. */
+private fun resolveResourceName(sessionRoot: File, id: Int): String {
+    val publicFiles = findFiles(sessionRoot, "public.xml", 0)
+    if (publicFiles.isEmpty()) {
+        throw PatchException(
+            "Mod settings: no public.xml under " + sessionRoot.absolutePath +
+                " -- cannot resolve the mined xml id to a file",
+        )
+    }
+    for (file in publicFiles) {
+        val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file)
+        val nodes = doc.getElementsByTagName("public")
+        for (index in 0 until nodes.length) {
+            val element = nodes.item(index) as? Element ?: continue
+            val parsed = element.getAttribute("id").removePrefix("0x").toLongOrNull(16) ?: continue
+            if (parsed.toInt() == id && element.getAttribute("type") == "xml") {
+                return element.getAttribute("name")
+            }
+        }
+    }
+    throw PatchException(
+        "Mod settings: the mined xml id ${"0x%08x".format(id)} is not in any public.xml",
+    )
+}
+
+private fun findFiles(directory: File, name: String, depth: Int): List<File> {
+    if (depth > 8 || !directory.isDirectory) {
+        return emptyList()
+    }
+    val found = mutableListOf<File>()
+    directory.listFiles()?.forEach { child ->
+        if (child.isDirectory) {
+            found += findFiles(child, name, depth + 1)
+        } else if (child.name == name) {
+            found += child
+        }
+    }
+    return found
+}
+
+/** The key of the main-list row that opens the sub-screen (the click handler is re-keyed to it). */
+private const val MOD_SETTINGS_KEY = "ytvr_mod_settings"
+
+/** Parses [xml], hands the root element to [edit], and writes the result back. */
+private inline fun editXml(xml: File, edit: (root: Element) -> Unit) {
+    val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xml)
+    edit(doc.documentElement)
+    TransformerFactory.newInstance().newTransformer().apply {
+        setOutputProperty(OutputKeys.INDENT, "yes")
+        setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no")
+    }.transform(DOMSource(doc), StreamResult(xml))
+}
+
+/**
+ * Puts the "Mod settings" row at the top of one main settings list. Idempotence is by the row's
+ * key; rows of an older flat layout of this patch (same `ytvr_mod_` key prefix) are removed so a
+ * reused decode migrates instead of doubling.
+ */
+private fun addModSettingsEntry(xml: File) = editXml(xml) { root ->
+    root.childElements().forEach { row ->
+        val key = row.getAttribute("android:key")
+        if (key.startsWith("ytvr_mod_") && !(row.tagName == "Preference" && key == MOD_SETTINGS_KEY)) {
+            root.removeChild(row)
+        }
+    }
+    val existing = root.childElements().firstOrNull { it.getAttribute("android:key") == MOD_SETTINGS_KEY }
+    if (existing != null) {
+        existing.setAttribute("android:title", MAIN_ROW_TITLE)
+    } else {
+        val row = root.ownerDocument.createElement("Preference")
+        row.setAttribute("android:key", MOD_SETTINGS_KEY)
+        row.setAttribute("android:title", MAIN_ROW_TITLE)
+        root.insertBefore(row, root.firstChild)
+    }
+}
+
+private const val MAIN_ROW_TITLE = "Mod settings"
+
+/**
+ * Replaces the whole content of the hub's preferences XML with the feature entry rows. The root
+ * element (and with it the resource id and the inflation path) stays the app's own.
+ */
+private fun fillHubScreen(xml: File) = editXml(xml) { root ->
+    if (root.getElementsByTagName("*").let { nodes ->
+            (0 until nodes.length).any { index ->
+                val element = nodes.item(index)
+                element is Element && element.getAttribute("android:key") == HUB_ENTRY_KEY
+            }
+        }
+    ) {
+        return@editXml
+    }
+    while (root.firstChild != null) {
+        root.removeChild(root.firstChild)
+    }
+    HUB_ROWS.forEach { row ->
+        val element = root.ownerDocument.createElement(row.first)
+        row.second.forEach { attribute -> element.setAttribute(attribute.first, attribute.second) }
+        root.appendChild(element)
+    }
+}
+
+/** The hub's SponsorBlock entry, whose key doubles as the hub's idempotence marker. */
+private const val HUB_ENTRY_KEY = "ytvr_mod_sb_screen"
+
+private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
+    "Preference" to listOf(
+        "android:key" to HUB_ENTRY_KEY,
+        "android:title" to "SponsorBlock",
+        "android:summary" to "Skips crowd-sourced sponsor segments automatically",
+    ),
+)
+
+/**
+ * Replaces the whole content of the SponsorBlock screen's preferences XML with the SponsorBlock
+ * rows. The root element (and with it the resource id and the inflation path) stays the app's own.
+ *
+ * [categoryDefaults] is the patch's baked per-category behaviour. It becomes each row's
+ * `android:defaultValue` on purpose: androidx's `ListPreference` *persists* its default the first
+ * time it is bound, so a row whose XML default disagreed with the baked one would silently
+ * overwrite the configured behaviour the moment the screen was opened.
+ */
+private fun fillSponsorBlockScreen(
+    xml: File,
+    categoryDefaults: Map<String, String>,
+) = editXml(xml) { root ->
+    if (root.getElementsByTagName("*").let { nodes ->
+            (0 until nodes.length).any { index ->
+                val element = nodes.item(index)
+                element is Element && element.getAttribute("android:key") == SUBSCREEN_MASTER_KEY
+            }
+        }
+    ) {
+        return@editXml
+    }
+    while (root.firstChild != null) {
+        root.removeChild(root.firstChild)
+    }
+    subScreenRows(categoryDefaults).forEach { row ->
+        val element = root.ownerDocument.createElement(row.first)
+        row.second.forEach { attribute -> element.setAttribute(attribute.first, attribute.second) }
+        root.appendChild(element)
+    }
+}
+
+private const val CATEGORY_LAYOUT = "@layout/settings_pref_title_with_divider"
+private const val SWITCH = "androidx.preference.SwitchPreference"
+private const val LIST = "androidx.preference.ListPreference"
+private const val PLAIN = "androidx.preference.Preference"
+private const val SEEK_BAR = "androidx.preference.SeekBarPreference"
+
+private const val BEHAVIOUR_ENTRIES = "@array/ytvr_sb_behaviour_entries"
+private const val BEHAVIOUR_VALUES = "@array/ytvr_sb_behaviour_values"
+private const val HIGHLIGHT_ENTRIES = "@array/ytvr_sb_highlight_entries"
+private const val HIGHLIGHT_VALUES = "@array/ytvr_sb_highlight_values"
+
+/**
+ * The pickers' key prefix. **Deliberately not the switches' old `ytvr_mod_cat_` prefix**: androidx's
+ * `ListPreference` reads its own key with `getString`, and `SharedPreferencesImpl.getString` throws
+ * `ClassCastException` when a Boolean is stored there -- which is exactly what the old per-category
+ * switch left behind, so reusing the key made opening this screen crash for anyone who had ever
+ * touched a category switch (verified: `Boolean cannot be cast to String` at
+ * `ListPreference.h → Preference.t → SharedPreferencesImpl.getString`). The extension migrates the
+ * old values into these keys, so nothing is lost.
+ */
+private const val BEHAVIOUR_KEY_PREFIX = "ytvr_mod_sb_behaviour_"
+
+/**
+ * The pickers' options, in the order the dialog shows them. `manual-skip` ("Show a Skip button")
+ * is deliberately absent: this player has no skip button, so offering it would promise something
+ * the port cannot do. The store still accepts the value (it maps to `seekbar-only`), so settings
+ * exported from the phone patch keep their intent.
+ */
+private val BEHAVIOUR_ENTRY_LABELS = listOf(
+    "Skip automatically",
+    "Skip automatically once",
+    "Show in seekbar only",
+    "Disable",
+)
+private val BEHAVIOUR_ENTRY_VALUES = listOf("skip", "skip-once", "seekbar-only", "ignore")
+
+/**
+ * Highlight is "the part most people are looking for", not a stretch to skip past, and upstream
+ * refuses `skip-once` for it (its API rejects the value). Same shape here, so the export/import
+ * round trip matches.
+ */
+private val HIGHLIGHT_ENTRY_LABELS = listOf(
+    "Skip automatically",
+    "Show in seekbar only",
+    "Disable",
+)
+private val HIGHLIGHT_ENTRY_VALUES = listOf("skip", "seekbar-only", "ignore")
+
+/** The master switch, whose key doubles as the sub-screen's idempotence marker. */
+private const val SUBSCREEN_MASTER_KEY = "ytvr_mod_sb_enabled"
+
+private val CATEGORIES = listOf(
+    "sponsor" to "Sponsor",
+    "selfpromo" to "Unpaid / self-promotion",
+    "interaction" to "Interaction reminder",
+    "intro" to "Intro / intermission",
+    "outro" to "Outro / endcards",
+    "poi_highlight" to "Highlight",
+    "preview" to "Preview / recap",
+    "hook" to "Hook / greetings",
+    "filler" to "Filler / tangent",
+    "music_offtopic" to "Non-music section",
+)
+
+private fun subScreenRows(
+    categoryDefaults: Map<String, String>,
+): List<Pair<String, List<Pair<String, String>>>> = buildList {
+    add(SWITCH to listOf(
+        "android:title" to "SponsorBlock",
+        "android:key" to SUBSCREEN_MASTER_KEY,
+        "android:defaultValue" to "true",
+        "android:summary" to "Skips crowd-sourced sponsor segments",
+    ))
+    add(SWITCH to listOf(
+        "android:title" to "Seek-bar markers",
+        "android:key" to "ytvr_mod_sb_markers",
+        "android:defaultValue" to "true",
+        "android:summary" to "Shows the segment categories on the seek bar",
+    ))
+    // The old global "Skip each segment only once" switch is gone: every category carries its own
+    // behaviour now, which is what that switch was standing in for. The key is still read by the
+    // extension so a choice made with it is not lost (see SponsorBlockSettings.behaviour).
+    add("PreferenceCategory" to listOf(
+        "android:layout" to CATEGORY_LAYOUT,
+        "android:title" to "Categories",
+        "android:selectable" to "false",
+    ))
+    for ((key, title) in CATEGORIES) {
+        val highlight = key == "poi_highlight"
+        add(LIST to listOf(
+            "android:title" to title,
+            "android:key" to BEHAVIOUR_KEY_PREFIX + key,
+            "android:defaultValue" to rowDefault(categoryDefaults[key], highlight),
+            "android:entries" to (if (highlight) HIGHLIGHT_ENTRIES else BEHAVIOUR_ENTRIES),
+            "android:entryValues" to (if (highlight) HIGHLIGHT_VALUES else BEHAVIOUR_VALUES),
+            // ListPreference replaces %s with the selected entry, so the row itself says what it
+            // currently does -- the same "Skip automatically once" subtitle the phone patch shows.
+            "android:summary" to "%s",
+        ))
+    }
+    // The two rows that are not per-category.
+    //
+    // "Stats" is display-only (`selectable=false`), and the extension writes its summary at bind
+    // time -- a static XML summary could never show a running total.
+    add(PLAIN to listOf(
+        "android:title" to STATS_TITLE,
+        "android:key" to STATS_KEY,
+        "android:selectable" to "false",
+    ))
+    // A plain SeekBarPreference on purpose: its `min`/`max`/`showSeekBarValue` are *app*-namespace
+    // attributes, and injecting those would mean declaring another namespace inside the app's own
+    // preference file. The range defaults to 0..100 and the extension writes the current value into
+    // the summary at bind time instead, which reads better than the widget's own value label.
+    add(SEEK_BAR to listOf(
+        "android:title" to MIN_DURATION_TITLE,
+        "android:key" to MIN_DURATION_KEY,
+        "android:defaultValue" to "0",
+    ))
+}
+
+/** The rows' titles as the extension's row hook recognises them (see CategoryRows). */
+private const val STATS_TITLE = "Stats"
+private const val MIN_DURATION_TITLE = "Minimum segment duration"
+private const val STATS_KEY = "ytvr_mod_sb_stats"
+internal const val MIN_DURATION_KEY = "ytvr_mod_sb_min_duration"
+
+/**
+ * The baked behaviour as a row default that is one of that row's own entries. `manual-skip` is
+ * normalised the same way the extension normalises it, and a `skip-once` highlight (which upstream
+ * refuses) falls back to `skip` rather than leaving the picker with a value it cannot display.
+ */
+private fun rowDefault(configured: String?, highlight: Boolean): String {
+    val allowed = if (highlight) HIGHLIGHT_ENTRY_VALUES else BEHAVIOUR_ENTRY_VALUES
+    val normalised = if (configured == "manual-skip") "seekbar-only" else configured
+    if (normalised != null && normalised in allowed) {
+        return normalised
+    }
+    return allowed.first()
+}
+
+/**
+ * Adds the pickers' `entries`/`entryValues` arrays to the tree's existing arrays file, beside the
+ * SponsorBlock screen's XML. Idempotent by the first array's name, like every other edit here.
+ */
+private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, String>) {
+    val resDir = screenXml.parentFile?.parentFile
+        ?: throw PatchException("Mod settings: ${screenXml.absolutePath} has no res/ ancestor")
+    val valuesDir = File(resDir, "values")
+    val arraysFile = File(valuesDir, "arrays.xml")
+    if (!arraysFile.exists()) {
+        throw PatchException(
+            "Mod settings: no ${arraysFile.absolutePath} to put the behaviour arrays in; the " +
+                "category pickers would inflate without entries",
+        )
+    }
+    // A guard, not a nicety: this is the one place where the patch assumes `poi_highlight` is a
+    // category, and the arrays must line up with the rows element for element.
+    check(CATEGORIES.any { it.first == "poi_highlight" }) {
+        "Mod settings: the highlight category is missing, so its picker would share the " +
+            "skip-once list upstream refuses for it"
+    }
+    check(categoryDefaults.isNotEmpty()) {
+        "Mod settings: no per-category defaults were passed, so every picker would default to " +
+            "the first entry (" + BEHAVIOUR_ENTRY_VALUES.first() + ") regardless of the options"
+    }
+    editXml(arraysFile) { root ->
+        val existing = root.getElementsByTagName("string-array")
+        for (index in 0 until existing.length) {
+            val element = existing.item(index) as? Element ?: continue
+            if (element.getAttribute("name") == "ytvr_sb_behaviour_entries") {
+                return@editXml
+            }
+        }
+        val arrays = listOf(
+            "ytvr_sb_behaviour_entries" to BEHAVIOUR_ENTRY_LABELS,
+            "ytvr_sb_behaviour_values" to BEHAVIOUR_ENTRY_VALUES,
+            "ytvr_sb_highlight_entries" to HIGHLIGHT_ENTRY_LABELS,
+            "ytvr_sb_highlight_values" to HIGHLIGHT_ENTRY_VALUES,
+        )
+        for ((name, items) in arrays) {
+            val array = root.ownerDocument.createElement("string-array")
+            array.setAttribute("name", name)
+            for (item in items) {
+                val entry = root.ownerDocument.createElement("item")
+                entry.textContent = item
+                array.appendChild(entry)
+            }
+            root.appendChild(array)
+        }
+    }
+}
+
+private fun Element.childElements(): List<Element> =
+    (0 until childNodes.length).mapNotNull { index ->
+        childNodes.item(index) as? Element
+    }
