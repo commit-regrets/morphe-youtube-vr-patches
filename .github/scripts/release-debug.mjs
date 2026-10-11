@@ -1,16 +1,21 @@
 import { generateNotes } from '@semantic-release/release-notes-generator';
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const presetPkg = require.resolve('conventional-changelog-conventionalcommits/package.json');
-console.log('preset pkg:', presetPkg);
-console.log('preset version:', require(presetPkg).version);
+const pkgJsonPath = p => path.join(path.dirname(require.resolve(p)), 'package.json');
 
-const presetRequire = createRequire(presetPkg);
+const presetPkg = pkgJsonPath('conventional-changelog-conventionalcommits');
+console.log('preset version:', JSON.parse(fs.readFileSync(presetPkg)).version, 'at', presetPkg);
+
+const presetMain = require.resolve('conventional-changelog-conventionalcommits');
+const presetRequire = createRequire(presetMain);
 try {
-  const w = presetRequire.resolve('conventional-changelog-writer/package.json');
-  console.log('preset->writer:', presetRequire(w).version, 'at', w);
+  const wMain = presetRequire.resolve('conventional-changelog-writer');
+  const wPkg = path.join(path.dirname(wMain), 'package.json');
+  console.log('preset->writer:', JSON.parse(fs.readFileSync(wPkg)).version, 'at', wMain);
 } catch (e) {
   console.log('preset->writer resolve FAILED:', e.message.split('\n')[0]);
 }
@@ -44,7 +49,7 @@ try {
     lastRelease: { version: '1.22.1', gitTag: 'v1.22.1', gitHead: 'e96c8d6' },
     nextRelease: { type: 'patch', version: '1.22.2', gitTag: 'v1.22.2' },
   });
-  console.log('RENDER OK, first 3 lines:\n' + notes.split('\n').slice(0, 3).join('\n'));
+  console.log('RENDER OK, first 2 lines:\n' + notes.split('\n').slice(0, 2).join('\n'));
 } catch (e) {
   console.log('RENDER FAILED:', e.message.split('\n')[0]);
   process.exitCode = 1;
