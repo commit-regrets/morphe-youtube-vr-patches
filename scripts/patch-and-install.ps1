@@ -5,15 +5,22 @@
 .DESCRIPTION
     Runs the whole pipeline, in the order the Quest requires:
 
-      1. our bundle                  -> the ad-free app (defaults are the recommended
-                                        configuration: streaming spoof ON, diagnostics OFF)
-      2. official "Clone app"        -> a separate package, because a differently signed
-                                        APK cannot update the store app in place
-      3. official "Custom branding"  -> optional, cosmetic
-      4. adb install -r
+      1. our bundle                  -> the ad-free app, patched *as a clone*: this bundle's
+                                        "Install as clone" patch renames the package
+                                        (default app.morphe.android.youtube), because a
+                                        differently signed APK cannot update the store
+                                        app in place. Defaults are the recommended
+                                        configuration: streaming spoof ON, diagnostics OFF
+      2. official "Clone app"        -> only with -OfficialClone, and it disables ours for
+                                        that run: the official patch is universal, so the
+                                        patcher can never default-select it and Manager's
+                                        Simple mode never applies it at all
+      3. adb install -r
 
     It verifies the *effective* patch options from the patch result file, so a silently
     dropped option cannot produce a build that looks fine but is not what was asked for.
+    That includes the clone's package id: a rename that quietly no-ops leaves the output
+    under the store app's own id, which is the one outcome this script exists to prevent.
     Options are passed through a generated `--options-file`, never as `-O`: the CLI binds
     every `-O` on the command line to the FIRST `--enable`, so a second option-bearing
     patch silently keeps its default (see docs/INTERNALS.md).
@@ -34,7 +41,7 @@ param(
     # Our patch bundle. Defaults to the newest build in patches/build/libs.
     [string] $OurBundle,
 
-    # The official Morphe bundle, used for Clone app / Custom branding.
+    # The official Morphe bundle. Only needed for -OfficialClone (see below).
     [string] $OfficialBundle,
 
     # Morphe Desktop CLI jar.
@@ -43,8 +50,11 @@ param(
     # Java executable.
     [string] $Java,
 
-    # Package name for the clone. Must be unique per install. Any name works; this one makes no
-    # claim about the vendor and cannot be confused with the store app.
+    # Package name for the clone, handed to this bundle's "Install as clone" patch. Must be
+    # unique per install. Any name works; this one makes no claim about the vendor and cannot
+    # be confused with the store app. Passing the app's own id is refused unless -NoClone or
+    # -OfficialClone is also given: that would make the rename a no-op, i.e. a build that
+    # replaces the store app, which is not what "clone" means.
     [string] $PackageName = 'app.morphe.android.youtube',
 
     # Name shown in the headset's library (App name patch). Pass '' to keep the stock name.
@@ -85,6 +95,7 @@ param(
         'Disable DRC audio',
         'Extension',
         'Hide ads',
+        'Install as clone',
         'Remove viewer discretion dialog',
         'SponsorBlock',
         'Spoof app version',
@@ -101,7 +112,17 @@ param(
     # SponsorBlock alongside anything else you need. Its options keep their defaults.
     [string[]] $ExtraPatches = @('SponsorBlock'),
 
-    # Skip the clone+brand steps (produces an APK that cannot be installed over the store app).
+    # Rename with the official bundle's universal "Clone app" instead of this bundle's
+    # "Install as clone", which is disabled for this run. Two renamers must never run together:
+    # both finalise, and the official one wins (patches execute alphabetically and the finalize
+    # blocks run in reverse), so a run that ticked both would silently get the official patch's
+    # rename. Kept as an escape hatch for comparing against the official patch; it costs a second
+    # apply pass, which is exactly what a default-on patch in our own bundle removes.
+    [switch] $OfficialClone,
+
+    # Do not rename at all: our "Install as clone" patch is disabled, so the output keeps the
+    # official package id and cannot be installed over the store app (a differently signed APK
+    # cannot update it). Only useful for an A/B build to inspect, not to install.
     [switch] $NoClone,
 
     # Skip adb install.
@@ -182,6 +203,7 @@ function Invoke-Patch {
         [string] $InputApk,
         [string] $OutputApk,
         [string[]] $Enable = @(),
+        [string[]] $Disable = @(),
         [hashtable] $PatchOptions = @{},
         [switch] $Exclusive
     )
@@ -201,6 +223,9 @@ function Invoke-Patch {
     }
     if ($Exclusive) { $arguments += '--exclusive' }
     foreach ($name in $Enable) { $arguments += @('--enable', $name) }
+    # --disable rather than an options-file entry: every patch the options file mentions is
+    # written as enabled = $true there, so disabling through it would contradict the file.
+    foreach ($name in $Disable) { $arguments += @('--disable', $name) }
     $arguments += @('--result-file', $resultFile, '-o', $OutputApk, $InputApk)
 
     Write-Host ">> $script:JavaPath $($arguments -join ' ')" -ForegroundColor DarkGray
@@ -281,23 +306,32 @@ if ($IdentityProbe -and -not $Diagnostics) {
         "bot gate (docs/SABR-SPOOF-PLAN.md, 2026-10-11).")
 }
 
+if ($NoClone -and $OfficialClone) {
+    Fail ('-NoClone and -OfficialClone contradict each other: -NoClone renames nothing and ' +
+        '-OfficialClone renames with the official bundle.')
+}
+
 if (-not $OfficialBundle) {
     $OfficialBundle = Join-Path $PSScriptRoot '..\apk\morphe-official-patches.mpp'
 }
-if (-not $NoClone -and -not (Test-Path $OfficialBundle)) {
-    Fail "official bundle not found: $OfficialBundle (needed for Clone app; pass -OfficialBundle or -NoClone)"
+if ($OfficialClone -and -not (Test-Path $OfficialBundle)) {
+    Fail ("official bundle not found: $OfficialBundle (needed for -OfficialClone; pass " +
+        "-OfficialBundle)")
 }
 
 if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot '..\apk' }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $step1 = Join-Path $OutDir 'ytvr-patched.apk'
 $step2 = Join-Path $OutDir 'ytvr-clone.apk'
-$final = if ($NoClone) { $step1 } else { Join-Path $OutDir 'ytvr-final.apk' }
+# Our own patch renames inside pass 1, so the clone's output *is* $step1. Only the official
+# escape hatch still needs a second pass, and only that one writes ytvr-final.apk.
+$final = if ($OfficialClone) { Join-Path $OutDir 'ytvr-final.apk' } else { $step1 }
 
 # --- 1. our patches -------------------------------------------------------------------
-Write-Host "`n[1/4] applying our patches: $bundle" -ForegroundColor Cyan
+Write-Host "`n[1/3] applying our patches: $bundle" -ForegroundColor Cyan
 $patchOptions = @{}
 $enableStep1 = @()
+$disableStep1 = @()
 # Two option-bearing patches in one run is exactly the case `-O` gets wrong, so the Extension options
 # are collected here and handed to the patcher through the options file with the App name's.
 $extensionOptions = @{}
@@ -313,15 +347,28 @@ if ($AppName) {
     $patchOptions['App name'] = @{ appName = $AppName }
     $enableStep1 += 'App name'
 }
+# The clone. "Install as clone" is default-on, so naming it is only about the option value (the
+# requested package id) and about keeping the printed command readable.
+if (-not $NoClone -and -not $OfficialClone) {
+    $patchOptions['Install as clone'] = @{ packageName = $PackageName }
+    $enableStep1 += 'Install as clone'
+} else {
+    # Never leave both renamers armed: two finalize blocks that each rewrite the manifest's package
+    # attribute, with the official one winning, is the trap this script must not walk into.
+    $disableStep1 += 'Install as clone'
+}
 # Opt-in patches (SponsorBlock) are named explicitly so the patcher turns them on; they are not
 # in -RequirePatches by default because they are not part of the standard build.
 foreach ($extra in $ExtraPatches) { $enableStep1 += $extra }
 # Naming the patches whose options are set is harmless (they are default-enabled anyway) and it
 # keeps the printed command readable now that the values live in the options file.
 $result1 = Invoke-Patch -Bundle $bundle -InputApk $Apk -OutputApk $step1 `
-    -Enable $enableStep1 -PatchOptions $patchOptions
+    -Enable $enableStep1 -Disable $disableStep1 -PatchOptions $patchOptions
 Assert-NoFailedPatches $result1 'our patches'
-Assert-RequiredPatches $result1 $RequirePatches 'our patches'
+# -NoClone and -OfficialClone disable the patch, so it cannot be required in those runs; every
+# other patch in the list still is.
+$required1 = @($RequirePatches | Where-Object { $_ -ne 'Install as clone' -or (-not $NoClone -and -not $OfficialClone) })
+Assert-RequiredPatches $result1 $required1 'our patches'
 
 $spoof = Get-OptionValue $result1 'Extension' 'enableStreamSpoof'
 $diagnostics = Get-OptionValue $result1 'Extension' 'enableDiagnostics'
@@ -360,17 +407,50 @@ if ($NoSpoof) {
     Write-Host '   NOTE: the streaming spoof is off, so the pre-roll ad will still play.' -ForegroundColor Yellow
 }
 
+# The clone's effective package id, read back from the result file. Two failures are silent and
+# both end with the patched app owning the store app's id, which is the outcome this script exists
+# to prevent: an option the patcher dropped, and a rename that no-ops because the requested id is
+# the id the app already has.
+$clonePackage = Get-OptionValue $result1 'Install as clone' 'packageName'
+$clonePermissions = Get-OptionValue $result1 'Install as clone' 'updatePermissions'
+$cloneProviders = Get-OptionValue $result1 'Install as clone' 'updateProviders'
+if (-not $NoClone -and -not $OfficialClone) {
+    if ($PackageName -eq "$($result1.packageName)") {
+        Fail ("-PackageName '$PackageName' is the app's own id, so the rename is a no-op and the " +
+            "output would install *as the store app*. That is what the patch's own Replace option " +
+            "asks for; a clone needs a distinct id. Pass one, or -NoClone for a build that is not " +
+            "meant to be installed.")
+    }
+    if ("$clonePackage" -ne $PackageName) {
+        Fail ("the Install as clone patch did not take '$PackageName' (effective '$clonePackage'): " +
+            "the APK would install under an id nobody asked for, or under the store app's")
+    }
+    if ("$clonePermissions" -ne 'true' -or "$cloneProviders" -ne 'true') {
+        Fail ("Install as clone must rewrite permissions and providers (effective " +
+            "updatePermissions=$clonePermissions, updateProviders=$cloneProviders): the stock " +
+            "manifest's DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION and its ...tracing / " +
+            "...mlkitinitprovider / ...firebaseinitprovider authorities would still name the " +
+            "store app")
+    }
+    Write-Host "   clone package = '$clonePackage' (updatePermissions=$clonePermissions, updateProviders=$cloneProviders)"
+} elseif ($OfficialClone) {
+    Write-Host '   Install as clone is disabled for this run (-OfficialClone)' -ForegroundColor Yellow
+} else {
+    Write-Host '   Install as clone is disabled for this run (-NoClone): no rename happens' -ForegroundColor Yellow
+}
+
 # --- 2. clone -------------------------------------------------------------------------
-if (-not $NoClone) {
-    # Clone app is applied on its own, on the original package name: these patches are
-    # filtered by package, so anything after the rename applies 0 patches.
+if ($OfficialClone) {
+    # Escape hatch: rename with the official universal "Clone app" instead. It is applied on its
+    # own, on the original package name: these patches are filtered by package, so anything after
+    # the rename applies 0 patches. Ours was disabled in pass 1, so exactly one renamer finalises.
     #
     # The official bundle's "Custom branding" is deliberately NOT used: it is a resource
     # patch for the phone YouTube/Music apps and is filtered out for YouTube VR (verified
     # -- enabling it applies 0 patches), so this app's library name stays "YouTube", from
     # its own `youtube_vr_app_name` string. Renaming it would need a small branding patch
     # of our own.
-    Write-Host "`n[2/3] cloning to $PackageName" -ForegroundColor Cyan
+    Write-Host "`n[2/3] cloning to $PackageName with the official Clone app" -ForegroundColor Cyan
     $result2 = Invoke-Patch -Bundle (Resolve-Path $OfficialBundle).Path -InputApk $step1 `
         -OutputApk $final -Exclusive -Enable @('Clone app') `
         -PatchOptions @{ 'Clone app' = @{ packageName = $PackageName } }
@@ -380,9 +460,12 @@ if (-not $NoClone) {
         Fail "the clone's package name is '$clonedTo', not '$PackageName'"
     }
 } else {
-    Write-Host "`n[2/3] skipped clone/brand (-NoClone)" -ForegroundColor Yellow
-    Write-Host '   note: a differently signed APK cannot update the store app; installing this' -ForegroundColor Yellow
-    Write-Host '   over it will fail unless the store app is uninstalled first.' -ForegroundColor Yellow
+    Write-Host "`n[2/3] no second pass: our bundle renames in pass 1" -ForegroundColor Cyan
+    if ($NoClone) {
+        Write-Host '   note: -NoClone: the output keeps the official package id. A differently' -ForegroundColor Yellow
+        Write-Host '   signed APK cannot update the store app; installing over it fails unless the' -ForegroundColor Yellow
+        Write-Host '   store app is uninstalled first.' -ForegroundColor Yellow
+    }
 }
 
 # --- 3. install -----------------------------------------------------------------------

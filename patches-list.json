@@ -225,6 +225,63 @@
       "options": []
     },
     {
+      "name": "Install as clone",
+      "description": "Installs the patched app as a separate app by default, so it sits alongside the store's YouTube VR instead of replacing it. Replace mode keeps the official package name: the store copy has to be removed to satisfy the signing difference, Horizon OS then treats this build as the YouTube VR app (a restore prompt, and a warning on every reboot), and a store update will collide with it because this build is signed differently.",
+      "default": true,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.apps.youtube.vr.oculus",
+          "name": "YouTube VR",
+          "description": null,
+          "apkFileType": "APK",
+          "appIconColor": "#FF0000",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "1.88.10",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "packageName",
+          "title": "Package name",
+          "description": "Clone installs a second app under its own package name and leaves the store app untouched (recommended). Replace keeps com.google.android.apps.youtube.vr.oculus: the store app must be uninstalled first, Meta then warns on every reboot, and the next store update fails on the signature mismatch.",
+          "required": true,
+          "type": "kotlin.String",
+          "default": "app.morphe.android.youtube",
+          "values": {
+            "app.morphe.android.youtube": "Clone — separate app next to the store app (recommended)",
+            "com.google.android.apps.youtube.vr.oculus": "Replace the official app — removes the store copy; Meta then treats this build as YouTube VR"
+          }
+        },
+        {
+          "key": "updatePermissions",
+          "title": "Update permissions",
+          "description": "Update custom permissions declared by the app. Fixes installation conflicts, but can break features in certain apps.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "updateProviders",
+          "title": "Update providers",
+          "description": "Update provider names declared by the app. Fixes installation conflicts, but can break features in certain apps.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Remove viewer discretion dialog",
       "description": "Removes the dialog that appears when opening a video that has been age-restricted by accepting it automatically. This does not bypass the age restriction.",
       "default": true,
