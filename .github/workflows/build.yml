@@ -1,12 +1,33 @@
-name: Build (pull request)
+name: Build
 
-# Nothing builds on a push, on purpose. A pull request into `main` is the point at which we want to
-# know the bundle still compiles, and `workflow_dispatch` allows building any branch on demand.
+# One build per push to `develop`, and none at all for pushes that cannot affect the bundle: the paths
+# filter below means a docs or notes commit burns no run. Superseded runs are cancelled, so pushing
+# twice in a minute costs one build rather than two.
+#
+# Deliberately not triggered by pushes to `main` -- nothing builds there unless we ask. Main is covered
+# by release.yml, which builds the bundle when a release is dispatched. A pull request into main needs
+# no separate build: its head commit is the one this workflow already built on develop, and that check
+# shows up on the pull request.
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - develop
+    paths:
+      - 'patches/**'
+      - 'extensions/**'
+      - 'buildSrc/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:

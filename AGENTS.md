@@ -157,11 +157,12 @@ and the identity-matrix probe stays gated behind `-Diagnostics`. Do not re-hamme
 request, which `open_pull_request.yml` opens (and keeps updated) automatically on every push to
 `develop`. Never commit to `main` directly.
 
-**Nothing is built or released by a push.** `release.yml` is `workflow_dispatch` only, so a release
-happens when someone asks for one: dispatch it from `main`, and semantic-release decides whether the
-commits since the last tag justify one (`.releaserc` also allows pre-releases from `develop`).
-`build_pull_request.yml` compiles the bundle for pull requests into `main`, and can be dispatched by
-hand for any branch. That PR build is the gate — not a green run on a push.
+**Nothing is built or released by a push to `main`.** `release.yml` is `workflow_dispatch` only, so a
+release happens when someone asks for one: dispatch it from `main`, and semantic-release decides whether
+the commits since the last tag justify one (`.releaserc` also allows pre-releases from `develop`).
+`build.yml` compiles the bundle on every push to `develop` that touches code (its `paths` filter skips
+docs-only pushes) and cancels superseded runs, so a burst of pushes costs one build. That check is the
+gate before merging, and it shows on the pull request because the PR's head commit is the one it built.
 
 **Release commits.** The workflow commits its version bump (`CHANGELOG.md`, `gradle.properties`,
 `patches-bundle.json`, `patches-list.json`, `README.md`) and back-merges into `develop`, so **always
