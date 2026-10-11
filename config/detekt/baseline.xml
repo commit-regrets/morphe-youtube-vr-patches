@@ -1,0 +1,51 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:SponsorBlockPatch.kt$pastUnknown &amp;&amp; instruction.opcode == Opcode.SPUT_OBJECT &amp;&amp; reference is FieldReference &amp;&amp; reference.definingClass == seekSourceType</ID>
+    <ID>ComplexCondition:SponsorBlockPatch.kt$target != null &amp;&amp; key != null &amp;&amp; holder != null &amp;&amp; swap != null &amp;&amp; superClick != null</ID>
+    <ID>CyclomaticComplexMethod:ExtensionPatch.kt$private fun Method.booleanCallsOnParameters(): List&lt;ParameterBooleanCall&gt;</ID>
+    <ID>CyclomaticComplexMethod:ExtensionPatch.kt$private fun Method.instanceOfFedBooleanWriteIndices(classDef: ClassDef? = null): List&lt;Int&gt;</ID>
+    <ID>CyclomaticComplexMethod:SponsorBlockPatch.kt$private fun BytecodePatchContext.relabelParallelStack(target: String)</ID>
+    <ID>CyclomaticComplexMethod:SponsorBlockPatch.kt$private fun BytecodePatchContext.wireModSettingsHub( screenClass: MutableClass, holderType: String, routeTarget: String, keyField: FieldReference, swapRef: MethodReference, superClickProto: String, argsField: FieldReference, sbXmlId: Int, )</ID>
+    <ID>LongMethod:SponsorBlockPatch.kt$private fun BytecodePatchContext.wireModSettingsHub( screenClass: MutableClass, holderType: String, routeTarget: String, keyField: FieldReference, swapRef: MethodReference, superClickProto: String, argsField: FieldReference, sbXmlId: Int, )</ID>
+    <ID>LongParameterList:PatchListGenerator.kt$JsonCompatibility$( /** Android package name, e.g. com.google.android.youtube. */ val packageName: String, /** Human-readable app name declared in Compatibility, e.g. "YouTube". */ val name: String?, /** User-facing description of the app. */ val description: String?, /** Target unpatched app file type, e.g. APK, APKM. Null if not specified. */ val apkFileType: String?, /** App icon background color as #RRGGBB string, or null if not set. */ val appIconColor: String?, /** Valid SHA-256 signatures of the app. */ val signatures: Set&lt;String&gt;?, val targets: List&lt;Target&gt;, )</ID>
+    <ID>LongParameterList:PatchListGenerator.kt$JsonPatch.Option$( val key: String, val title: String?, val description: String?, val required: Boolean, val type: String, val default: Any?, val values: Map&lt;String, Any?&gt;?, )</ID>
+    <ID>LongParameterList:SponsorBlockPatch.kt$( screenClass: MutableClass, holderType: String, routeTarget: String, keyField: FieldReference, swapRef: MethodReference, superClickProto: String, argsField: FieldReference, sbXmlId: Int, )</ID>
+    <ID>LoopWithTooManyJumpStatements:ExtensionPatch.kt$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SettingsXml.kt$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SponsorBlockPatch.kt$for</ID>
+    <ID>MagicNumber:ExtensionPatch.kt$0x10</ID>
+    <ID>MagicNumber:ExtensionPatch.kt$8</ID>
+    <ID>MagicNumber:SettingsXml.kt$16</ID>
+    <ID>MagicNumber:SettingsXml.kt$8</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$0x7f180000</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$0x7f180011</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$0x7f180013</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$0x7f1800ff</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$16</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$3</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$4</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$5</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$6</ID>
+    <ID>MagicNumber:SponsorBlockPatch.kt$8</ID>
+    <ID>MagicNumber:SpoofAppVersionPatch.kt$100_000</ID>
+    <ID>MagicNumber:SpoofAppVersionPatch.kt$10_000_000</ID>
+    <ID>MagicNumber:SpoofAppVersionPatch.kt$1_000</ID>
+    <ID>MaxLineLength:DisableQuicPatch.kt$smali = "Lorg/chromium/net/ExperimentalCronetEngine\$Builder;-&gt;enableQuic(Z)Lorg/chromium/net/ExperimentalCronetEngine\$Builder;"</ID>
+    <ID>MaxLineLength:ExtensionPatch.kt$returnType = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlatypusEnablingManager\$DecisionWithReason;"</ID>
+    <ID>MaxLineLength:SponsorBlockPatch.kt$val receiverRegister = (classRead as com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction).registerC</ID>
+    <ID>MaxLineLength:StitchedAdsPatch.kt$definingClass = "Lcom/google/android/libraries/youtube/media/interfaces/CuePointDataProviderWrapper\$NativeCallback;"</ID>
+    <ID>NewLineAtEndOfFile:SponsorBlockPatch.kt$app.ytvr.patches.sponsorblock.SponsorBlockPatch.kt</ID>
+    <ID>ReturnCount:SponsorBlockPatch.kt$private fun Method.referencesResourceId(id: Int): Boolean</ID>
+    <ID>ThrowsCount:SettingsXml.kt$internal fun restructureSettingsXmls( patchWorkspace: File, sbScreenXmlId: Int, categoryDefaults: Map&lt;String, String&gt;, )</ID>
+    <ID>ThrowsCount:SponsorBlockPatch.kt$private fun BytecodePatchContext.relabelParallelStack(target: String)</ID>
+    <ID>ThrowsCount:SponsorBlockPatch.kt$private fun BytecodePatchContext.wireModSettingsHub( screenClass: MutableClass, holderType: String, routeTarget: String, keyField: FieldReference, swapRef: MethodReference, superClickProto: String, argsField: FieldReference, sbXmlId: Int, )</ID>
+    <ID>TooGenericExceptionCaught:SponsorBlockPatch.kt$exception: Exception</ID>
+    <ID>TooManyFunctions:SettingsXml.kt$app.ytvr.patches.sponsorblock.SettingsXml.kt</ID>
+    <ID>TooManyFunctions:SponsorBlockPatch.kt$app.ytvr.patches.sponsorblock.SponsorBlockPatch.kt</ID>
+    <ID>UnusedPrivateMember:SponsorBlockPatch.kt$private fun Method.referencesResourceId(id: Int): Boolean</ID>
+    <ID>UnusedPrivateProperty:SponsorBlockPatch.kt$/** * `R.id.settings_fragment_holder`: the FrameLayout inside the settings card that the app's * settings *content* is added to. The "Patch settings" row is put at the top of that column so * it reads as one of the app's own rows instead of floating at the card's top-right corner. * Hand-kept for the same reason as `seekbar_bg` — the layout references it, no code does — * and the row falls back to the corner when it resolves to nothing. */ private const val ID_SETTINGS_HOLDER = 0x7f0b0a51</ID>
+    <ID>UnusedPrivateProperty:SponsorBlockPatch.kt$/** * `R.xml.settings_prefs` and `R.xml.panel2_settings_prefs`: the preference XMLs the app's settings * screens are built from. The method that loads one of them is where the screen exists and can be * added to, and it is found by these ids rather than by a class or method name. */ private val SETTINGS_PREFS_IDS = intArrayOf(0x7f180013, 0x7f180011)</ID>
+  </CurrentIssues>
+</SmellBaseline>
