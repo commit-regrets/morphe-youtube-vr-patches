@@ -184,6 +184,31 @@ public final class SponsorBlockSettings {
     }
 
     /**
+     * Records the "Verbose logging" row's choice, in the same file and under the same key the gate
+     * reads.
+     *
+     * The row is written *here* rather than by its own `SwitchPreference`, because that is the one
+     * path the gate is guaranteed to see: measured on the device, a plain androidx switch on these
+     * screens flips to ON while `ytvr_mod_verbose_logging` never appears in this file at all -- the
+     * extension printed `patch settings (...): the screen's switches are not there yet` on a build
+     * whose row read ON, across an update install that preserved app data. {@link CategoryRows} owns
+     * the row and calls this on a tap, which is also what the behaviour pickers already do.
+     */
+    static void setVerboseLogging(boolean on) {
+        try {
+            SharedPreferences mod = modPreferences();
+            if (mod == null) {
+                log("verbose logging not saved: no app context");
+                return;
+            }
+            mod.edit().putBoolean(VerboseLog.KEY_VERBOSE_LOGGING, on).apply();
+            log("verbose logging set: " + on);
+        } catch (Throwable t) {
+            log("verbose logging write failed: " + t);
+        }
+    }
+
+    /**
      * The baked defaults moved from this port's first set (five categories auto-skipping) to
      * upstream's map, where only sponsor skips by itself.
      *

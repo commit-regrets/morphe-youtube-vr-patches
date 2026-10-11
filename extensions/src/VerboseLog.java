@@ -3,6 +3,8 @@ package app.ytvr.extension;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.io.File;
+
 /**
  * The single gate every log line in this extension goes through.
  *
@@ -40,6 +42,9 @@ import android.content.SharedPreferences;
  * thrown into the app.
  */
 public final class VerboseLog implements SharedPreferences.OnSharedPreferenceChangeListener {
+
+    /** This class's own lines (the file list) carry the store's tag, like the rest of the store. */
+    private static final String TAG = "SponsorBlock";
 
     /**
      * The "Verbose logging" row's key. The patch writes the same literal into the hub's XML
@@ -99,8 +104,26 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
             if (enabled) {
                 SponsorBlockSettings.onLogGateOpened();
             }
+            if (fallback) {
+                // Development builds only, and only while the gate is open: the *names* of the
+                // app's preference files. Measured need -- a switch on these screens can show a new
+                // state while the file this class reads never receives the key, so knowing which
+                // files exist is the difference between guessing where it went and looking.
+                logPreferenceFiles(appContext);
+            }
         } catch (Throwable t) {
             enabled = false;
+        }
+    }
+
+    /** Lists the app's preference files (names only) into the log, in a development build. */
+    private static void logPreferenceFiles(Context appContext) {
+        try {
+            String[] names = new File(appContext.getDataDir(), "shared_prefs").list();
+            log(TAG, "preference files: "
+                + (names == null || names.length == 0 ? "(none)" : String.join(", ", names)));
+        } catch (Throwable t) {
+            log(TAG, "preference files unreadable: " + t);
         }
     }
 
@@ -133,6 +156,19 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     /** Whether the row is on, i.e. whether anything at all may be printed. */
     public static boolean enabled() {
         return enabled;
+    }
+
+    /**
+     * The viewer's own choice, applied by the row that owns the switch ({@link CategoryRows}): the
+     * value is persisted by {@link SponsorBlockSettings#setVerboseLogging} and the gate follows
+     * here, without waiting for the preference listener. Opening it also flushes the settings dump
+     * if that was built while the gate was still shut.
+     */
+    public static void setEnabled(boolean value) {
+        enabled = value;
+        if (value) {
+            SponsorBlockSettings.onLogGateOpened();
+        }
     }
 
     /**

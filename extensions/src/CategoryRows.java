@@ -7,6 +7,7 @@ import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -63,6 +64,11 @@ public final class CategoryRows {
      */
     private static final String STATS_TITLE = "Stats";
     private static final String MIN_DURATION_TITLE = "Minimum segment duration";
+    /**
+     * The log gate's row, matched by the title the patch gives it (`SettingsXml.VERBOSE_LOGGING_TITLE`).
+     * It is the one row whose value this class writes itself -- see {@link #decorateLogGateRow}.
+     */
+    private static final String VERBOSE_TITLE = "Verbose logging";
 
     private static final Set<String> REPORTED = Collections.synchronizedSet(new HashSet<String>());
     private static volatile Field ITEM_VIEW;
@@ -133,9 +139,10 @@ public final class CategoryRows {
             Integer remembered = tag instanceof Integer ? (Integer) tag : null;
 
             if (category == null) {
-                // Not a category row. Two of ours are still not categories -- the stats and the
-                // minimum-duration rows -- and both are display-only: their summary is written here,
-                // because a static XML summary could never show a running total or a live value.
+                // Not a category row. Three of ours are still not categories: the stats and the
+                // minimum-duration rows are display-only -- their summary is written here, because a
+                // static XML summary could never show a running total or a live value -- and the
+                // verbose-logging row is the one row whose *write* is ours as well.
                 if (STATS_TITLE.equals(label)) {
                     showSummary(row, SponsorBlockStats.summary());
                 } else if (MIN_DURATION_TITLE.equals(label)) {
@@ -143,8 +150,10 @@ public final class CategoryRows {
                     showSummary(row, minSeconds <= 0L
                         ? "Off: every segment is used"
                         : "Segments under " + minSeconds + "s are ignored");
+                } else if (VERBOSE_TITLE.equals(label)) {
+                    decorateLogGateRow(row);
                 }
-                // **Leave the row completely alone** -- this hook runs for every row of every
+                // **Leave every other row completely alone** -- this hook runs for every row of every
                 // settings screen, and clearing the click listener here removed the app's own
                 // handler, which is how the "Patch settings" row stopped opening (verified on the
                 // device). The colour is only put back if we were the ones who changed it.
@@ -175,6 +184,72 @@ public final class CategoryRows {
         } catch (Throwable t) {
             log("row decoration failed: " + t);
         }
+    }
+
+    /**
+     * The "Verbose logging" row: the log gate's switch, and the one row this class *writes*.
+     *
+     * The value is written through {@link SponsorBlockSettings#setVerboseLogging} instead of by the
+     * widget's own persistence, because that path is the one the gate is guaranteed to read.
+     * Measured on the device: this row's `SwitchPreference` flips to ON and stays ON across a screen
+     * rebuild, while `ytvr_mod_verbose_logging` never appears in the preference file the extension
+     * reads -- `SponsorBlock: patch settings (...): the screen's switches are not there yet` printed
+     * on a build whose row read ON, across an update install that preserved app data. Owning both
+     * halves (the write and the displayed state) is the same bargain the behaviour pickers already
+     * make, and it also makes the switch honest in a development build, where the gate starts open
+     * with nothing stored: the row shows what the gate *is*, not what someone once chose.
+     */
+    private static void decorateLogGateRow(final View row) {
+        try {
+            final CompoundButton toggle = compoundButtonIn(row);
+            boolean on = VerboseLog.enabled();
+            if (toggle != null) {
+                // Detached first: setting the state must not read as a tap.
+                toggle.setOnCheckedChangeListener(null);
+                toggle.setChecked(on);
+                toggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                    @Override
+                    public void onCheckedChanged(CompoundButton button, boolean checked) {
+                        setLogGate(checked);
+                    }
+                });
+            }
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View clicked) {
+                    setLogGate(!VerboseLog.enabled());
+                    if (toggle != null) {
+                        toggle.setChecked(VerboseLog.enabled());
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            log("verbose logging row failed: " + t);
+        }
+    }
+
+    /** Persists the choice in the file the gate reads, and opens or closes the gate immediately. */
+    private static void setLogGate(boolean on) {
+        SponsorBlockSettings.setVerboseLogging(on);
+        VerboseLog.setEnabled(on);
+    }
+
+    /** The switch inside a row, found by type: androidx's ids are R8-renamed, platform types are not. */
+    private static CompoundButton compoundButtonIn(View view) {
+        if (view instanceof CompoundButton) {
+            return (CompoundButton) view;
+        }
+        if (!(view instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            CompoundButton found = compoundButtonIn(group.getChildAt(index));
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     /**
