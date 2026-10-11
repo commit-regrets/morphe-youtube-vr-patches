@@ -27,10 +27,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Inline rather than webfactory/ssh-agent: that action still targets Node.js 20, which GitHub is
+      # now forcing onto Node 24 with a deprecation warning on every run. Six lines of shell do the
+      # same job with nothing to keep current.
       - name: Load the GitLab deploy key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.GITLAB_DEPLOY_KEY }}
+        env:
+          GITLAB_DEPLOY_KEY: ${{ secrets.GITLAB_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$GITLAB_DEPLOY_KEY" > ~/.ssh/gitlab_deploy
+          chmod 600 ~/.ssh/gitlab_deploy
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/gitlab_deploy
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
 
       - name: Trust gitlab.com
         run: |
