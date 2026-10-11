@@ -941,8 +941,7 @@ What the shipped version is:
   SponsorBlock, Seek-bar markers, "Skip each segment only once", a "Categories" header, and one switch
   per category. `SwitchPreference` is the superclass of the app's own
   `ProtoDataStoreSwitchPreference`, so the rows render in the same layout.
-- The extension reads what the user picks from the standard `<package>_preferences` file (androidx's
-  default; the app never calls `setSharedPreferencesName`), with `enabled()`, `markersEnabled()` and
+- The extension reads what the user picks from the screens' preference file, **`youtube.xml`** (measured 2026-10-11: the screens' fragment sets its storage name to `"youtube"` via `fyp.g("youtube")`; the earlier belief that androidx's default `<package>_preferences` was used was wrong — that file never existed), with `enabled()`, `markersEnabled()` and
   `behaviour()` each consulting it and falling back to the baked defaults until the screen is used.
   `behaviour()` maps a category switch to `skip`/`ignore`, and the "only once" switch to `skip-once`.
 - Two patcher facts, learned by failing:
@@ -1001,7 +1000,7 @@ Together with the rest of the evidence, every part of this feature is now verifi
 | part | evidence |
 |---|---|
 | the section and its rows | headset verdict above; the patched workspace shows the rows at the top of `settings_prefs.xml`, and the built APK's compiled settings XMLs (`res/4I.xml`, `res/B0.xml`) contain the switches |
-| the switches reach the feature | the extension reads `<package>_preferences` on demand (`enabled()`, `markersEnabled()`, `behaviour()`), the file androidx writes; the baked defaults deliberately equal the XML defaults, so behaviour is the same before and after the first toggle |
+| the switches reach the feature | the extension reads `youtube.xml` on demand (`enabled()`, `markersEnabled()`, `behaviour()`), the file the screens persist to (`fyp.g("youtube")`); the baked defaults deliberately equal the XML defaults, so behaviour is the same before and after the first toggle |
 | seek-bar markers | `seekbar dump: marker left=0 span=387 top=9 height=9` (attached to the app's played-bar parent at the line's geometry) and `seekbar markers drawn: 1 segment(s) over 387px inset=2 thickness=5 (window 0ms..538000ms)` (the drawn form, with the inset that matches the line's 3dp transparent stroke); confirmed visually earlier |
 | skipping | `segments ready: 1 (1 skippable)` -> `skipping sponsor 40.781s->125.339s (position 41195 ms)` -> `seek confirmed at 125339 ms (target 125339)` |
 | no crashes | the crash buffer is empty across every run of this build |
@@ -1040,7 +1039,7 @@ What the patch does (SettingsXml.kt rewrites + three structural bytecode edits p
 |---|---|---|
 | the entry row | a plain `<Preference android:key="ytvr_mod_settings" android:title="Patch settings"/>` at the top of `settings_prefs.xml` and `panel2_settings_prefs.xml` (the flat rows of Addendum 14 are removed) | a plain `Preference` with no `android:fragment`/intent is inert on its own; the click handler is what routes it |
 | the click handler's key | the `const-string "developer_settings"` comparison in the `(Preference)Z` click handler is replaced with `"ytvr_mod_settings"` — mined via `getAllClassesWithString`, matched by shape, **validated** by requiring the `const-class` that follows to belong to a class carrying the `"Developer Settings"` title literal | the app keeps removing its own dead row (that lookup still says `developer_settings` and `PreferenceGroup.ab`'s list remove is guarded); ours routes instead |
-| the sub-screen's XML | `developer_settings_prefs.xml` keeps its root element (and thus its resource id and inflation path) but its **children are replaced** with the SponsorBlock rows | no id is minted; the switches persist to the same `<package>_preferences` file (same androidx default PreferenceManager) |
+| the sub-screen's XML | `developer_settings_prefs.xml` keeps its root element (and thus its resource id and inflation path) but its **children are replaced** with the SponsorBlock rows | no id is minted; the switches persist to the screens' shared `youtube.xml` file (`fyp.g("youtube")`) |
 | the wiring skip | the sub-screen fragment's `()V` setup (the class's only `()V` method holding exactly one `0x7f1800xx` literal — the `xml` id window) gets `return-void` inserted right after its `o(R.xml...)` call; the rest becomes dead code | the skipped wiring dereferences app-only rows (`experiment_ids`, `keyboard_settings`, `oculus_mobile_feature_2`, ...) **without null checks** and would NPE on the slimmed XML; our plain switches need none of it |
 | the title | the `"Developer Settings"` literal in the fragment's view-created callback becomes `"SponsorBlock"` | the header is the app's own `aF(String)` |
 

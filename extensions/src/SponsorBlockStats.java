@@ -38,8 +38,7 @@ public final class SponsorBlockStats {
             if (context == null) {
                 return;
             }
-            SharedPreferences mod = context.getSharedPreferences(
-                context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+            SharedPreferences mod = SponsorBlockSettings.modPreferences(context);
             long segments = mod.getLong(KEY_SEGMENTS, 0L) + 1L;
             long millis = mod.getLong(KEY_MILLIS, 0L) + saved;
             mod.edit().putLong(KEY_SEGMENTS, segments).putLong(KEY_MILLIS, millis).apply();
@@ -57,8 +56,7 @@ public final class SponsorBlockStats {
             if (context == null) {
                 return "no app context yet";
             }
-            SharedPreferences mod = context.getSharedPreferences(
-                context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
+            SharedPreferences mod = SponsorBlockSettings.modPreferences(context);
             long segments = mod.getLong(KEY_SEGMENTS, 0L);
             long millis = mod.getLong(KEY_MILLIS, 0L);
             sessionSegments = Integer.valueOf((int) Math.min(segments, Integer.MAX_VALUE));

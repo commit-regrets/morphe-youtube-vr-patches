@@ -108,8 +108,8 @@ navigation.** Reuse them.
 - **The reused screen's own wiring will crash on a slimmed XML.** The developer-settings setup
   dereferences app-only rows (`experiment_ids`, refresh-rate, foveated rendering) without null
   checks. Skip it — a `return-void` right after the inflation call, or the wholesale rewrite;
-  plain `SwitchPreference` rows need no wiring (they persist to the standard
-  `<package>_preferences` file and render without listeners).
+  plain `SwitchPreference` rows need no wiring (they persist to the screens' `youtube.xml` file
+  — the fragment sets its storage name to `"youtube"` — and render without listeners).
 - **`getAllClassesWithString` returns raw dex class defs** — re-resolve each through the mutable
   class repository before touching its methods.
 - **Don't skip reference-less instructions while mining.** A `const` has no reference; a

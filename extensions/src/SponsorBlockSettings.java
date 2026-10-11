@@ -317,8 +317,10 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * androidx's default preference file. The app never calls `setSharedPreferencesName`, so this is
-     * where every switch on its settings screen is persisted — including the rows this patch adds.
+     * The file the settings screens persist to. Measured 2026-10-11: the screens' fragment sets
+     * its preference storage name to "youtube" before inflating (fyp's `g("youtube")`), so every
+     * widget row this patch adds commits there — the same file this extension must read and write.
+     * Earlier builds read `<package>_preferences`, a file nothing ever wrote.
      */
     private static SharedPreferences modPreferences() {
         return modPreferences(context);
@@ -334,8 +336,7 @@ public final class SponsorBlockSettings {
         if (appContext == null) {
             return null;
         }
-        return appContext.getSharedPreferences(appContext.getPackageName() + "_preferences",
-            Context.MODE_PRIVATE);
+        return appContext.getSharedPreferences("youtube", Context.MODE_PRIVATE);
     }
 
     /**
@@ -428,8 +429,7 @@ public final class SponsorBlockSettings {
                 log("patch settings: no app context");
                 return;
             }
-            StringBuilder text = new StringBuilder("patch settings (")
-                .append(context.getPackageName()).append("_preferences): ");
+            StringBuilder text = new StringBuilder("patch settings (youtube.xml): ");
             Boolean on = modBoolean(KEY_MOD_ENABLED);
             Boolean markers = modBoolean(KEY_MOD_MARKERS);
             Boolean once = modBoolean(KEY_SKIP_ONCE);

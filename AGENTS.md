@@ -125,7 +125,7 @@ from the device.
 | the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
 | every injected block in Application.onCreate is inserted at index 0, so the **last** insertion runs **first** | ordering is inverted: the verbose-log gate must be the last edit this patch makes, and a dump emitted before the gate opens must be re-emitted once it does (storeReady/dumpLogged in SponsorBlockSettings) |
-| a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension reads `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, into the file the gate reads |
+| a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension read `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. **Fixed the same day**: `SponsorBlockSettings.modPreferences` now reads and writes `youtube.xml` too, so the widgets own every row again; `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, so the gate follows the tap without waiting for the widget's apply |
 
 ## SponsorBlock notes
 
@@ -148,9 +148,10 @@ above hangs off it.
 
 * **The row, and who writes it.** `Verbose logging`, key `ytvr_mod_verbose_logging`, a
   `SwitchPreference` on the "Patch settings" hub, off by default (in the extension and in the row's
-  own `android:defaultValue`). The value is written by `CategoryRows`, not by the widget -- see the
-  trap below -- so it lands in `<package>_preferences`, the file the gate reads, and the gate follows
-  the tap immediately (`VerboseLog.setEnabled`). The row renders the gate's *effective* state, so a
+  own `android:defaultValue`). The extension reads and writes `youtube.xml` -- the file the screens'
+  widgets persist to, see the trap above -- so the widget's own write reaches the gate, and
+  `CategoryRows`' own write (`VerboseLog.setEnabled`) makes the gate follow the tap immediately
+  rather than after the widget's async apply. The row renders the gate's *effective* state, so a
   development build shows it ON, and the stored value is sticky across `adb install -r`.
 * **`-Diagnostics` also opens it.** The `Verbose diagnostics (development only)` option selects which
   hooks are installed *and* the gate's initial default, so a development build logs from its first
@@ -164,11 +165,13 @@ above hangs off it.
   SponsorBlock settings too) or a toggle-off.
 * **A development build lists its preference files** (`VerboseLog.logPreferenceFiles`, only when the
   gate is open): the *names* of everything in `shared_prefs/`. That line exists because a switch on
-  these screens can show a new state while our file never receives it, and the only way to tell
-  "never written" from "written somewhere else" is to look.
+  these screens can show a new state while the file this extension reads never receives it, and the
+  only way to tell "never written" from "written somewhere else" is to look.
 * **And names the file that holds the mod's keys** (`VerboseLog.logYtvrKeyLocations`, same gate):
-  one line per preference file containing keys prefixed `ytvr_mod`, key *names* only. Measured
-  2026-10-11: all of them sit in `youtube.xml` (see the trap above).
+  one line per preference file containing keys prefixed `ytvr_mod`, key *names* only. Since the
+  extension reads `youtube.xml` itself this is a cross-check rather than a hunt, but it is what
+  found the original split (2026-10-11: every `ytvr_mod*` key sat in `youtube.xml` while the
+  extension read a file that did not exist).
 
 ## Project state and open problems
 

@@ -133,10 +133,9 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
 
     /**
      * In a development build: which preference file holds the keys this mod reads and writes.
-     * Measured need -- the settings screens set their preference storage name to "youtube"
-     * (the screen fragment's {@code g("youtube")}), so a widget row commits to youtube.xml while
-     * this extension reads {@code <package>_preferences}. Key *names* only; values stay unknown
-     * to the log.
+     * Measured need -- the screens set their storage name to "youtube" and this extension reads
+     * that same file now, so this line is the cross-check that the mod's keys really are where
+     * both writers put them. Key *names* only; values stay unknown to the log.
      */
     private static void logYtvrKeyLocations(Context appContext) {
         try {
