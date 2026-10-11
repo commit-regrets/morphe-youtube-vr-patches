@@ -33,6 +33,11 @@ jobs:
   build:
     name: Build the bundle
     runs-on: ubuntu-latest
+    # Reading the Morphe registry also needs the automatic GITHUB_TOKEN to be granted the package
+    # scope; without it the token is present but still not allowed to read packages.
+    permissions:
+      contents: read
+      packages: read
     # The Morphe registry (app.morphe.patches) lives on GitHub Packages, which refuses anonymous reads
     # even for public packages. Without these the build dies in settings.gradle.kts with "Plugin
     # [id: 'app.morphe.patches'] was not found". release.yml passes the same token, which is why
