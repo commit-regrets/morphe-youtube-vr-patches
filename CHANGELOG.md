@@ -1,3 +1,10 @@
+## [1.22.1](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.22.0...v1.22.1) (2026-10-11)
+
+### 🐛 Bug Fixes
+
+* **ci:** revert the changelog preset to v9 -- v10 needs a newer writer ([87bc354](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/87bc354c6879bf7b93408792b7423c202040feb1))
+* **ci:** run the release notes on conventional-changelog-conventionalcommits v10 ([c5acb62](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/c5acb62fb4311453152c94a5b09c6d413b2bc180))
+
 ## [1.22.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.21.0...v1.22.0) (2026-10-11)
 
 ### 🐛 Bug Fixes
