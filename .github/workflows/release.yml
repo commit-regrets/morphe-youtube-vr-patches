@@ -38,10 +38,12 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # npm ci, deliberately: the lockfile pins @semantic-release/release-notes-generator to
-        # 15.0.0-beta.3 (via the overrides entry) and a bare npm install re-resolves the tree and
-        # can drop an override that sits outside the parent's declared range -- which is exactly
-        # how a release run re-flagged the old writer after the fix had landed.
+        # npm ci, deliberately: it installs the committed lockfile verbatim, so this tree is
+        # byte-for-byte the one the debug step below inspects. `overrides` cannot help here --
+        # cycjimmy/semantic-release-action installs semantic-release into its own private tree
+        # (/home/runner/work/_actions/.../v6) and resolves the writer from there, outside the
+        # reach of anything in this repository. Preset 9.3.1 is the version that renders with
+        # that tree's conventional-changelog-writer@8.
         run: npm ci
 
       - name: Debug writer resolution
