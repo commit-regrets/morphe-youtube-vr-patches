@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * SponsorBlock configuration: the patch's baked-in defaults, overridden by whatever
- * the user changed in the in-app "Mod settings" panel.
+ * the user changed in the in-app "Patch settings" panel.
  *
  * The patch options are still the source of the defaults (API base, one behaviour per
  * category), written into the injected {@code const-string} pair at
@@ -353,17 +353,17 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * What the Mod settings screen (the app's own list) currently says. This is the one line that
+     * What the Patch settings screen (the app's own list) currently says. This is the one line that
      * says whether the screen's switches reached the feature, without a screenshot.
      */
     private static void logModSettings() {
         try {
             SharedPreferences mod = modPreferences();
             if (mod == null) {
-                log("mod settings: no app context");
+                log("patch settings: no app context");
                 return;
             }
-            StringBuilder text = new StringBuilder("mod settings (")
+            StringBuilder text = new StringBuilder("patch settings (")
                 .append(context.getPackageName()).append("_preferences): ");
             Boolean on = modBoolean(KEY_MOD_ENABLED);
             Boolean markers = modBoolean(KEY_MOD_MARKERS);
@@ -403,7 +403,7 @@ public final class SponsorBlockSettings {
             log("stats: " + SponsorBlockStats.sessionSummary()
                 + "; minimum segment duration: " + (minSegmentDurationMs() / 1000L) + "s");
         } catch (Throwable t) {
-            log("mod settings log failed: " + t);
+            log("patch settings log failed: " + t);
         }
     }
 

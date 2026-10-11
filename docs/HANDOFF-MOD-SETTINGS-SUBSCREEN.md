@@ -1,4 +1,4 @@
-# Handoff: make "Mod settings" open a SponsorBlock sub-screen
+# Handoff: make "Patch settings" open a SponsorBlock sub-screen
 
 > **RESOLVED** (2026-10-10) — the three blockers below are real but **not fatal**: the app's own
 > developer-settings screen is dead UI whose navigation (`fzb.aC` → `fzf.aH(fyp.class, null)`) is
@@ -10,12 +10,12 @@
 > null-safe; this androidx build drops `ARG_PREFERENCE_ROOT`) and the verification status. The rest
 > of this document is kept as the record of why the earlier attempt stopped at a flat list.
 
-**Asked for by the user:** in Settings, tapping **Mod settings** should open a **sub-screen** (like the
+**Asked for by the user:** in Settings, tapping **Patch settings** should open a **sub-screen** (like the
 app's own `developer_settings` / `environments_menu` rows do) titled **SponsorBlock**, with the
 SponsorBlock settings *inside* it. Today everything is flat on the settings screen itself:
 
 ```
-Mod settings          <- PreferenceCategory header
+Patch settings          <- PreferenceCategory header
   SponsorBlock              [switch]
   Seek-bar markers          [switch]
   Skip each segment only once [switch]
@@ -26,7 +26,7 @@ Categories            <- PreferenceCategory header
 Wanted:
 
 ```
-Mod settings          <- the only thing on the main settings list
+Patch settings          <- the only thing on the main settings list
   └─ tap ─▶ SponsorBlock          (sub-screen)
               SponsorBlock              [switch]
               Seek-bar markers          [switch]
@@ -83,7 +83,7 @@ first child** (top of the list), and throws if it finds nothing. Idempotence is 
 inflation needs them.
 
 Consequence: **configuration through XML works; reflection by name silently does nothing** (an earlier
-attempt did exactly that and produced "I don't find mod settings anywhere"). If you ever must call an
+attempt did exactly that and produced "I don't find patch settings anywhere"). If you ever must call an
 androidx method, resolve its name by *descriptor* from the dex and pass it in, or find it structurally.
 
 ---
@@ -111,11 +111,11 @@ Three independent blockers, all verified in this session's tool results:
    which is worse than a flat list.
 
 So the shipped answer is the closest a flat list gets: a **"SponsorBlock" header** under
-"Mod settings", with the SponsorBlock switches and the "Categories" header beneath it, so the list
+"Patch settings", with the SponsorBlock switches and the "Categories" header beneath it, so the list
 reads as SponsorBlock's settings rather than as loose switches:
 
 ```
-Mod settings            (header, key ytvr_mod_settings)
+Patch settings            (header, key ytvr_mod_settings)
 SponsorBlock            (header)
   Enable SponsorBlock            [switch]   key ytvr_mod_sb_enabled
   Seek-bar markers               [switch]   key ytvr_mod_sb_markers
@@ -145,7 +145,7 @@ $env:GITHUB_ACTOR='psipher'; $env:GITHUB_TOKEN=(gh auth token -u psipher)
 .\gradlew buildAndroid --console=plain
 
 .\scripts\patch-and-install.ps1 -Apk apk\com.google.android.apps.youtube.vr.oculus.apk `
-  -PackageName com.google.android.apps.youtube.vr.oculus.morphe `
+  -PackageName app.morphe.android.youtube `
   -ExtraPatches SponsorBlock -Adb C:\adb\platform-tools\adb.exe
 ```
 
@@ -174,28 +174,28 @@ $zip.Dispose()
 **On the headset:** launch, open Settings, tap the row, and check the log:
 
 ```powershell
-adb logcat -d | rg -a "SponsorBlock: mod settings" | Select-Object -Last 2
+adb logcat -d | rg -a "SponsorBlock: patch settings" | Select-Object -Last 2
 ```
 
-`mod settings (…_preferences): sponsorblock=… markers=… skipOnce=…, N categor(y/ies) on` means the
+`patch settings (…_preferences): sponsorblock=… markers=… skipOnce=…, N categor(y/ies) on` means the
 app stored a toggle and the extension read it. `the screen's switches are not there yet` means no
 toggle has been written yet (or the file differs — then `logModSettings()` in
 `SponsorBlockSettings.java` is where to widen the search).
 
 adb serial `<headset serial>`; the test build is the cloned package
-`com.google.android.apps.youtube.vr.oculus.morphe`; a reliable SponsorBlock test video is
+`app.morphe.android.youtube`; a reliable SponsorBlock test video is
 `https://www.youtube.com/watch?v=P2JjlayovG8&t=36s` (sponsor segment 40.781 s → 125.339 s).
 
 ## Acceptance criteria
 
-1. Settings shows the **Mod settings** header with a **SponsorBlock** header under it, and the
+1. Settings shows the **Patch settings** header with a **SponsorBlock** header under it, and the
    SponsorBlock switches grouped beneath that (shipped; verified in the built APK).
 2. A genuine tap-to-open SponsorBlock sub-screen would need the three blockers above solved first.
 3. Back/controller navigation returns to the settings list; the app does not crash (check
    `adb logcat -d -b crash`).
 4. Flipping a switch is reflected in the log line above, and skipping honours it on the next video.
 5. `docs/SPONSORBLOCK-PLAN.md` gets an addendum describing what was tried and what shipped;
-   `README.md`'s "Mod settings" section describes the sub-screen; `FINGERPRINTS.md` / `INTERNALS.md`
+   `README.md`'s "Patch settings" section describes the sub-screen; `FINGERPRINTS.md` / `INTERNALS.md`
    get any new anchor (with a note if it is name-free or hand-kept).
 
 ## Standing rules in this repo

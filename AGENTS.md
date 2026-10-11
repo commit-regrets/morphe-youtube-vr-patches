@@ -40,13 +40,13 @@ $env:JAVA_HOME="C:\Users\<your-user>\tools\jdk21"
 $env:GITHUB_ACTOR=(gh api user -q .login); $env:GITHUB_TOKEN=(gh auth token)   # for dependency fetch
 .\gradlew.bat buildAndroid --no-daemon --console=plain
 pwsh -NoProfile -File scripts\patch-and-install.ps1 -Apk apk\com.google.android.apps.youtube.vr.oculus.apk `
-    -PackageName com.google.android.apps.youtube.vr.oculus.morphe -AppName "YouTube VR (patched)"
+    -PackageName app.morphe.android.youtube -AppName "YouTube VR (patched)"
 ```
 
 * The script uses the newest `patches/build/libs/patches-*.mpp`. If `gradlew` did not actually print
   `BUILD SUCCESSFUL`, the install silently uses the **previous** bundle — check the file's timestamp.
 * The script fails loudly if the applied patch set is missing a patch you need (`-ExtraPatches`).
-  `SponsorBlock` is in the default set; it also builds the "Mod settings" hub screen.
+  `SponsorBlock` is in the default set; it also builds the "Patch settings" hub screen.
 * A green `Applied:` list is **not** proof the right method was patched. Verify on the device.
 
 ## Device access
@@ -122,7 +122,7 @@ from the device.
 | dialogs are never composited into the VR panel (`AlertDialog.show()` succeeds, nothing appears) | picker UI must not be a window |
 | views added to the window's **decor** are not drawn either — only the app's own content subtree is rendered | picker UI must live *inside a row* |
 | the row's text column is a **`RelativeLayout`** (title, then summary with `layout_below="@android:id/title"`) | `LinearLayout.LayoutParams` are ignored and the view lands on top of the summary |
-| the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Mod settings" row once); return immediately for foreign rows |
+| the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
 
 ## SponsorBlock notes
