@@ -254,12 +254,15 @@ off this repository, and each one has already looked like a bug report ("there i
 
 * **Simple mode never draws a patch list for this app.** Simple mode applies only the patches selected
   by default, and for YouTube VR the official bundle contributes none, so a Simple-mode run applies
-  this bundle alone. The clone step is reachable only in **Settings → Advanced → Expert mode** (off by
-  default), and there it sits in the last, *collapsed* **Universal patches** block of the *Morphe
-  Patches* (official) source's page.
+  this bundle alone -- which is enough since this bundle has its own **Install as clone** patch, and
+  that patch is one of those defaults (it is app-specific, so `default = true` is legal). It is the
+  *official* **Clone app** that is reachable only in **Settings → Advanced → Expert mode** (off by
+  default), in the last, *collapsed* **Universal patches** block of the *Morphe Patches* (official)
+  source's page. Nothing here needs it any more.
 * **A universal patch can never be default-selected.** The patcher enforces it: a universal patch
   declared default-on fails with "Universal patches must be declared with default false". That is why
-  no universal patch -- `Clone app` included -- appears in a default or Simple-mode run.
+  no universal patch -- `Clone app` included -- appears in a default or Simple-mode run, and why the
+  clone step had to be re-implemented here as an app-specific patch before Simple mode could apply it.
 * **A signature conflict can silently remove the already-installed app.** With Shizuku and "auto
   uninstall" enabled, Manager uninstalls the conflicting package first rather than only warning about
   it. That is how a stock YouTube VR disappears and a patched build ends up owning the official id,
@@ -272,7 +275,12 @@ off this repository, and each one has already looked like a bug report ("there i
   resolves to `<original>.morphe`; this project uses `app.morphe.android.youtube`.
 
 Manager filters patches before any patch executes within a pass, so a rename there cannot filter other
-patches out of that pass. The README's "Clone app must be applied last" warning belongs to our
-two-pass CLI script, not to Manager.
+patches out of that pass. The README's note that the *official* `Clone app` has to be its own pass
+belongs to our two-pass CLI script, not to Manager.
+
+**Never select both renamers in one run.** With this bundle's **Install as clone** and the official
+**Clone app** both ticked, both finalise and the **official one wins**: patches execute alphabetically
+and their finalize blocks run in reverse. `scripts/patch-and-install.ps1` cannot walk into it --
+`-OfficialClone` disables ours for that run.
 
 Verify CI in the right repo: `gh run list -R commit-regrets/morphe-youtube-vr-patches`.
