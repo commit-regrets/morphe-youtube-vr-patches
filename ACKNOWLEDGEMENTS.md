@@ -67,18 +67,3 @@ or measured against here, and each is credited for what it actually contributed.
   experiment's direction.
 - **[MorpheApp/morphe-desktop](https://github.com/MorpheApp/morphe-desktop)** — the patcher CLI
   used throughout (`patch`, `list-patches`, `-Okey=value` option passing, `--result-file`).
-## Tooling
-
-Credited here as well as listed in the README's [Requirements](README.md#-requirements-and-tooling),
-because "what came from where" is what this file is for:
-
-- **[jadx](https://github.com/skylot/jadx)** — every decompilation these patches are anchored on. An
-  anchor is only trustworthy when the bytecode has actually been read, and jadx is what reads it.
-- **[REA](https://github.com/morluto/rea)** — reverse-engineering toolkit. Its device documentation is
-  where the two workflow recipes in [AGENTS.md](AGENTS.md#device-access) come from: capturing the
-  headset without wearing it, and wireless adb. Caveat recorded there: `rea capture-adb-screen` failed
-  in this environment, so frames came from plain `adb`.
-- **Android platform-tools (`adb`)** — installing on the headset, reading its logs, and every
-  screenshot the notes refer to.
-- **[Morphe Desktop](https://github.com/MorpheApp/morphe-desktop)** and the **Android SDK
-  build-tools** — applying the bundles and dexing the extension.
