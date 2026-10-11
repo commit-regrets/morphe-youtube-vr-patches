@@ -1,3 +1,9 @@
+## [1.23.1](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.23.0...v1.23.1) (2026-10-11)
+
+### 🐛 Bug Fixes
+
+* **sponsorblock:** find the settings XML from Manager's split patcher session ([579f978](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/579f978e3a5019cca481ded103e2872bd9caf286))
+
 ## [1.23.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.22.2...v1.23.0) (2026-10-11)
 
 ### ✨ New Features
