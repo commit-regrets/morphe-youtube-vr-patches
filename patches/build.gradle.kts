@@ -83,6 +83,7 @@ val compileExtension by tasks.registering(Exec::class) {
         extensionClassesDir.get().asFile.mkdirs()
         commandLine(
             jdkTool("javac"),
+            "-Xlint:all",
             "-classpath", androidJar.absolutePath,
             "-d", extensionClassesDir.get().asFile.absolutePath,
             *sources.files.map { it.absolutePath }.sorted().toTypedArray()
