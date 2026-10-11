@@ -124,6 +124,7 @@ from the device.
 | the row's text column is a **`RelativeLayout`** (title, then summary with `layout_below="@android:id/title"`) | `LinearLayout.LayoutParams` are ignored and the view lands on top of the summary |
 | the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
+| every injected block in Application.onCreate is inserted at index 0, so the **last** insertion runs **first** | ordering is inverted: the verbose-log gate must be the last edit this patch makes, and a dump emitted before the gate opens must be re-emitted once it does (storeReady/dumpLogged in SponsorBlockSettings) |
 
 ## SponsorBlock notes
 
