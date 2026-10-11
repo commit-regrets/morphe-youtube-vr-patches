@@ -2,7 +2,7 @@ package app.ytvr.extension;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -16,28 +16,25 @@ import org.json.JSONObject;
 /**
  * Fetches SponsorBlock segments for a video id and caches the answer per video.
  *
- * Contract, matching what the phone patch measures on the same endpoint
- * (Morphe's SBRoutes/SBRequester): {@code GET {base}/api/skipSegments} with
- * {@code videoID}, a {@code categories} JSON array of every category whose
- * behaviour is not "ignore", and {@code actionTypes=["skip"]} — the VR port
- * filters the action type explicitly, because a returned {@code mute} or
- * {@code full} segment is not a range to seek past. 404 is success with zero
- * segments (the normal empty answer); every other status, a timeout or an IO
- * error gives up quietly and puts the video on a short no-retry list. One fetch
- * per video id change, one background thread, hard timeouts, a User-Agent that
- * identifies the client, and a small per-video LRU — where the phone patch has
- * no cache at all, a bounded one is this port's addition (VR users replay and
- * re-seek constantly).
+ * <p>Contract, matching what the phone patch measures on the same endpoint (Morphe's
+ * SBRoutes/SBRequester): {@code GET {base}/api/skipSegments} with {@code videoID}, a {@code
+ * categories} JSON array of every category whose behaviour is not "ignore", and {@code
+ * actionTypes=["skip"]} — the VR port filters the action type explicitly, because a returned {@code
+ * mute} or {@code full} segment is not a range to seek past. 404 is success with zero segments (the
+ * normal empty answer); every other status, a timeout or an IO error gives up quietly and puts the
+ * video on a short no-retry list. One fetch per video id change, one background thread, hard
+ * timeouts, a User-Agent that identifies the client, and a small per-video LRU — where the phone
+ * patch has no cache at all, a bounded one is this port's addition (VR users replay and re-seek
+ * constantly).
  *
- * Never throws into the app, and never runs on the player thread: the controller
- * calls {@link #fetch} from its tick, this class only ever hands the result back
- * through {@link Callback}.
+ * <p>Never throws into the app, and never runs on the player thread: the controller calls {@link
+ * #fetch} from its tick, this class only ever hands the result back through {@link Callback}.
  */
 public final class SponsorBlockClient {
 
     private static final String TAG = "SponsorBlock";
     private static final String USER_AGENT =
-        "morphe-ytvr-patches SponsorBlock/1.0 (YouTube VR on Quest; +https://sponsor.ajay.app)";
+            "morphe-ytvr-patches SponsorBlock/1.0 (YouTube VR on Quest; +https://sponsor.ajay.app)";
     private static final int CONNECT_TIMEOUT_MS = 7000;
     private static final int READ_TIMEOUT_MS = 10000;
     private static final int CACHE_CAPACITY = 4;
@@ -58,28 +55,28 @@ public final class SponsorBlockClient {
 
     /** Per-video cache; oldest entry evicted beyond {@link #CACHE_CAPACITY}. */
     private static final Map<String, List<SponsorSegment>> CACHE =
-        new LinkedHashMap<String, List<SponsorSegment>>(8, 0.75f, true) {
-            protected boolean removeEldestEntry(Map.Entry<String, List<SponsorSegment>> eldest) {
-                return size() > CACHE_CAPACITY;
-            }
-        };
+            new LinkedHashMap<String, List<SponsorSegment>>(8, 0.75f, true) {
+                protected boolean removeEldestEntry(
+                        Map.Entry<String, List<SponsorSegment>> eldest) {
+                    return size() > CACHE_CAPACITY;
+                }
+            };
 
     /** videoId -> epoch ms of the last failed fetch; no retry inside the backoff window. */
     private static final Map<String, Long> FAILED_AT = new LinkedHashMap<String, Long>();
 
     /** Callers that arrived while a fetch for the same video was already running. */
     private static final Map<String, List<Callback>> QUEUED =
-        new LinkedHashMap<String, List<Callback>>();
+            new LinkedHashMap<String, List<Callback>>();
 
     private static volatile String inFlightVideoId;
 
-    private SponsorBlockClient() {
-    }
+    private SponsorBlockClient() {}
 
     /**
-     * Asks for the segments of [videoId] unless a valid answer is already cached
-     * or a recent attempt failed. [callback] always runs exactly once per call
-     * that results in a fetch (or cache hit), on the fetch thread.
+     * Asks for the segments of [videoId] unless a valid answer is already cached or a recent
+     * attempt failed. [callback] always runs exactly once per call that results in a fetch (or
+     * cache hit), on the fetch thread.
      */
     public static void fetch(final String videoId, final Callback callback) {
         try {
@@ -90,7 +87,7 @@ public final class SponsorBlockClient {
             synchronized (FAILED_AT) {
                 Long failedAt = FAILED_AT.get(videoId);
                 if (failedAt != null
-                    && System.currentTimeMillis() - failedAt.longValue() < FAILURE_BACKOFF_MS) {
+                        && System.currentTimeMillis() - failedAt.longValue() < FAILURE_BACKOFF_MS) {
                     return;
                 }
             }
@@ -99,12 +96,13 @@ public final class SponsorBlockClient {
             }
             if (cached != null) {
                 final List<SponsorSegment> hit = copies(cached);
-                EXECUTOR.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        callback.onSegments(videoId, hit);
-                    }
-                });
+                EXECUTOR.execute(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                callback.onSegments(videoId, hit);
+                            }
+                        });
                 return;
             }
             if (videoId.equals(inFlightVideoId)) {
@@ -123,36 +121,37 @@ public final class SponsorBlockClient {
                 return;
             }
             inFlightVideoId = videoId;
-            EXECUTOR.execute(new Runnable() {
-                @Override
-                public void run() {
-                    inFlightVideoId = null;
-                    List<SponsorSegment> segments = request(videoId);
-                    if (segments == null) {
-                        // Failed: the backoff covers a later retry and no caller is told,
-                        // which is what the phone build does too.
-                        synchronized (QUEUED) {
-                            QUEUED.remove(videoId);
+            EXECUTOR.execute(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            inFlightVideoId = null;
+                            List<SponsorSegment> segments = request(videoId);
+                            if (segments == null) {
+                                // Failed: the backoff covers a later retry and no caller is told,
+                                // which is what the phone build does too.
+                                synchronized (QUEUED) {
+                                    QUEUED.remove(videoId);
+                                }
+                                return;
+                            }
+                            synchronized (CACHE) {
+                                CACHE.put(videoId, segments);
+                            }
+                            // The cache keeps the parsed list; every caller gets fresh objects so
+                            // per-playback skip state can never travel through the cache.
+                            callback.onSegments(videoId, copies(segments));
+                            List<Callback> waiting;
+                            synchronized (QUEUED) {
+                                waiting = QUEUED.remove(videoId);
+                            }
+                            if (waiting != null) {
+                                for (Callback queued : waiting) {
+                                    queued.onSegments(videoId, copies(segments));
+                                }
+                            }
                         }
-                        return;
-                    }
-                    synchronized (CACHE) {
-                        CACHE.put(videoId, segments);
-                    }
-                    // The cache keeps the parsed list; every caller gets fresh objects so
-                    // per-playback skip state can never travel through the cache.
-                    callback.onSegments(videoId, copies(segments));
-                    List<Callback> waiting;
-                    synchronized (QUEUED) {
-                        waiting = QUEUED.remove(videoId);
-                    }
-                    if (waiting != null) {
-                        for (Callback queued : waiting) {
-                            queued.onSegments(videoId, copies(segments));
-                        }
-                    }
-                }
-            });
+                    });
         } catch (Throwable t) {
             log("fetch scheduling failed: " + t);
         }
@@ -177,8 +176,7 @@ public final class SponsorBlockClient {
                 if ("ignore".equals(SponsorBlockSettings.behaviour(category))) {
                     continue;
                 }
-                categories.append(separator)
-                    .append('"').append(category).append('"');
+                categories.append(separator).append('"').append(category).append('"');
                 separator = ",";
             }
             categories.append(']');
@@ -187,11 +185,15 @@ public final class SponsorBlockClient {
                 return new ArrayList<SponsorSegment>(0);
             }
 
-            String url = SponsorBlockSettings.apiBase() + "/api/skipSegments?videoID="
-                + URLEncoder.encode(videoId, "UTF-8")
-                + "&categories=" + URLEncoder.encode(categories.toString(), "UTF-8")
-                + "&actionTypes=" + URLEncoder.encode("[\"skip\"]", "UTF-8");
-            connection = (HttpURLConnection) new URL(url).openConnection();
+            String url =
+                    SponsorBlockSettings.apiBase()
+                            + "/api/skipSegments?videoID="
+                            + URLEncoder.encode(videoId, "UTF-8")
+                            + "&categories="
+                            + URLEncoder.encode(categories.toString(), "UTF-8")
+                            + "&actionTypes="
+                            + URLEncoder.encode("[\"skip\"]", "UTF-8");
+            connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
             connection.setRequestProperty("User-Agent", USER_AGENT);
@@ -233,13 +235,12 @@ public final class SponsorBlockClient {
     }
 
     /**
-     * Parses the response. The {@code videoID=} form returns a **flat array of
-     * segment objects** ({@code {category, segment:[start,end], actionType, ...}})
-     * — measured on the live API; the per-video wrapper ({@code {videoID,
-     * segments:[...]}}) belongs to the hash-prefix form, and this parser accepts
-     * both so a switch of endpoints cannot silently break it. Only actionType
-     * "skip" becomes a segment; ignored categories are dropped too (the server
-     * filters both — this is the belt to the server's braces).
+     * Parses the response. The {@code videoID=} form returns a **flat array of segment objects**
+     * ({@code {category, segment:[start,end], actionType, ...}}) — measured on the live API; the
+     * per-video wrapper ({@code {videoID, segments:[...]}}) belongs to the hash-prefix form, and
+     * this parser accepts both so a switch of endpoints cannot silently break it. Only actionType
+     * "skip" becomes a segment; ignored categories are dropped too (the server filters both — this
+     * is the belt to the server's braces).
      */
     private static List<SponsorSegment> parse(String videoId, String body) throws Exception {
         List<SponsorSegment> segments = new ArrayList<SponsorSegment>();
@@ -272,9 +273,12 @@ public final class SponsorBlockClient {
             if ("ignore".equals(SponsorBlockSettings.behaviour(category))) {
                 return;
             }
-            SponsorSegment segment = new SponsorSegment(
-                entry.optString("UUID"), category,
-                range.getDouble(0), range.getDouble(1));
+            SponsorSegment segment =
+                    new SponsorSegment(
+                            entry.optString("UUID"),
+                            category,
+                            range.getDouble(0),
+                            range.getDouble(1));
             if (segment.endMs > segment.startMs) {
                 segments.add(segment);
             }
