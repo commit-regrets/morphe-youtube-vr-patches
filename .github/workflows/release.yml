@@ -44,6 +44,12 @@ jobs:
         # how a release run re-flagged the old writer after the fix had landed.
         run: npm ci
 
+      - name: Debug writer resolution
+        run: |
+          npm ls conventional-changelog-writer --all
+          node -e "console.log('preset resolves writer:', require.resolve('conventional-changelog-writer', { paths: ['./node_modules/conventional-changelog-conventionalcommits'] }))"
+          node -e "console.log('version there:', require(require.resolve('conventional-changelog-writer/package.json', { paths: ['./node_modules/conventional-changelog-conventionalcommits'] })).version)"
+
       # The extension build needs an Android platform jar (for javac) and R8 (for d8). Neither
       # exists on the runner, so fetch both and hand them over through the environment -- the
       # build resolves them from $ANDROID_JAR and $R8_JAR (see patches/build.gradle.kts).
