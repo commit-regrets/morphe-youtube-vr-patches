@@ -48,7 +48,7 @@ jobs:
         run: |
           npm ls conventional-changelog-writer --all
           find node_modules -maxdepth 5 -name conventional-changelog-writer -type d
-          node build/probe/release-debug.mjs
+          node .github/scripts/release-debug.mjs
 
       # The extension build needs an Android platform jar (for javac) and R8 (for d8). Neither
       # exists on the runner, so fetch both and hand them over through the environment -- the
