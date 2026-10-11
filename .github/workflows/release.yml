@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  # Manual on purpose: no push triggers this, so nothing is built or released unless we ask.
+  # Dispatch it from `main` when a release is actually wanted; semantic-release then decides
+  # whether the commits since the last tag justify one (see .releaserc, which also allows
+  # pre-releases from `develop`).
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Release
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+      # @semantic-release/github's success step labels the released pull requests and issues;
+      # without this it fails with a 403 and no message, after the release has been published.
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v6.0.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      # The extension build needs an Android platform jar (for javac) and R8 (for d8). Neither
+      # exists on the runner, so fetch both and hand them over through the environment -- the
+      # build resolves them from $ANDROID_JAR and $R8_JAR (see patches/build.gradle.kts).
+      # Without this the release fails in `generatePatchesList`, i.e. before publishing.
+      - name: Provide the Android platform jar and R8
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools"
+          curl -fsSL -o "$tools/platform.zip" \
+            https://dl.google.com/android/repository/platform-34-ext7_r03.zip
+          unzip -q -o "$tools/platform.zip" -d "$tools"
+          echo "ANDROID_JAR=$(find "$tools" -name android.jar | head -n1)" >> "$GITHUB_ENV"
+          curl -fsSL -o "$tools/r8.jar" \
+            https://maven.google.com/com/android/tools/r8/9.5.23/r8-9.5.23.jar
+          echo "R8_JAR=$tools/r8.jar" >> "$GITHUB_ENV"
+
+      # Semantic release runs its own Gradle build command.
+      # Only dev and main branch will generate a release as specified by .releaserc
+      - name: Release
+        uses: cycjimmy/semantic-release-action@v6
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest
+        if: steps.release.outputs.new_release_published == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: 'Morphe Patches ${{ steps.release.outputs.new_release_git_tag }}'
+          subject-path: patches/build/libs/patches-*.mpp
+
+      # Always verify compilation when semantic-release did not publish a release.
+      # This covers non-main/dev branches, chore commits, docs commits, etc.
+      - name: Verify project compiles
+        if: steps.release.outputs.new_release_published != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew :patches:buildAndroid clean --no-daemon
