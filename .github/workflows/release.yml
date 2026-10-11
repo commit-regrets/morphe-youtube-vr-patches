@@ -47,8 +47,8 @@ jobs:
       - name: Debug writer resolution
         run: |
           npm ls conventional-changelog-writer --all
-          node -e "console.log('preset resolves writer:', require.resolve('conventional-changelog-writer', { paths: ['./node_modules/conventional-changelog-conventionalcommits'] }))"
-          node -e "console.log('version there:', require(require.resolve('conventional-changelog-writer/package.json', { paths: ['./node_modules/conventional-changelog-conventionalcommits'] })).version)"
+          find node_modules -maxdepth 5 -name conventional-changelog-writer -type d
+          node build/probe/release-debug.mjs
 
       # The extension build needs an Android platform jar (for javac) and R8 (for d8). Neither
       # exists on the runner, so fetch both and hand them over through the environment -- the
