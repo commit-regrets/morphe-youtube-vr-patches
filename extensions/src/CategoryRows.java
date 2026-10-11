@@ -202,30 +202,41 @@ public final class CategoryRows {
     private static void decorateLogGateRow(final View row) {
         try {
             final CompoundButton toggle = compoundButtonIn(row);
-            boolean on = VerboseLog.enabled();
-            if (toggle != null) {
-                // Detached first: setting the state must not read as a tap.
-                toggle.setOnCheckedChangeListener(null);
-                toggle.setChecked(on);
-                toggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            // One listener instance, so a programmatic setChecked can detach and re-attach the very
+            // same one: without that, the row's own tap (which sets the widget too) would re-enter
+            // this listener and log the same change twice.
+            final CompoundButton.OnCheckedChangeListener listener =
+                new CompoundButton.OnCheckedChangeListener() {
                     @Override
                     public void onCheckedChanged(CompoundButton button, boolean checked) {
                         setLogGate(checked);
                     }
-                });
-            }
+                };
+            showLogGate(toggle, listener);
             row.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View clicked) {
                     setLogGate(!VerboseLog.enabled());
-                    if (toggle != null) {
-                        toggle.setChecked(VerboseLog.enabled());
-                    }
+                    showLogGate(toggle, listener);
                 }
             });
         } catch (Throwable t) {
             log("verbose logging row failed: " + t);
         }
+    }
+
+    /**
+     * Draws the switch from the gate's effective state, without that being read as a tap: the
+     * listener comes off for the duration of the change. Also the path that shows a development
+     * build's open gate on a row with nothing stored.
+     */
+    private static void showLogGate(CompoundButton toggle, CompoundButton.OnCheckedChangeListener listener) {
+        if (toggle == null) {
+            return;
+        }
+        toggle.setOnCheckedChangeListener(null);
+        toggle.setChecked(VerboseLog.enabled());
+        toggle.setOnCheckedChangeListener(listener);
     }
 
     /** Persists the choice in the file the gate reads, and opens or closes the gate immediately. */
