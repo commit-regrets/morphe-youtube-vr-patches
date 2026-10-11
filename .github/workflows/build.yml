@@ -33,7 +33,13 @@ jobs:
   build:
     name: Build the bundle
     runs-on: ubuntu-latest
-    steps:
+    # The Morphe registry (app.morphe.patches) lives on GitHub Packages, which refuses anonymous reads
+    # even for public packages. Without these the build dies in settings.gradle.kts with "Plugin
+    # [id: 'app.morphe.patches'] was not found". release.yml passes the same token, which is why
+    # releases build while a workflow without it cannot.
+    env:
+      GITHUB_ACTOR: ${{ github.actor }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
