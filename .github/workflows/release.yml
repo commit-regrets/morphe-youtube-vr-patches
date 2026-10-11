@@ -38,7 +38,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        # npm ci, deliberately: the lockfile pins @semantic-release/release-notes-generator to
+        # 15.0.0-beta.3 (via the overrides entry) and a bare npm install re-resolves the tree and
+        # can drop an override that sits outside the parent's declared range -- which is exactly
+        # how a release run re-flagged the old writer after the fix had landed.
+        run: npm ci
 
       # The extension build needs an Android platform jar (for javac) and R8 (for d8). Neither
       # exists on the runner, so fetch both and hand them over through the environment -- the
