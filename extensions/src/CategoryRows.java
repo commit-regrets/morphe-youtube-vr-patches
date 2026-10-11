@@ -241,6 +241,14 @@ public final class CategoryRows {
 
     /** Persists the choice in the file the gate reads, and opens or closes the gate immediately. */
     private static void setLogGate(boolean on) {
+        // One tap reaches this through both of the row's listeners (the row's onClick and the
+        // switch's checked-change), so deduplicate on the gate's current state: a request for the
+        // state already in force is the second delivery of the same tap. Measured 2026-10-11: an
+        // ON tap echoed twice same-millisecond once the echo stopped being gated -- the old gated
+        // echo had been printing "once per tap" only because the gate swallowed the duplicate.
+        if (VerboseLog.enabled() == on) {
+            return;
+        }
         // The echo comes first and ungated: the write below hands the gate its new state, and a
         // gated echo is exactly the one line a viewer needs to see a tap worked (see
         // VerboseLog.logGateToggle).

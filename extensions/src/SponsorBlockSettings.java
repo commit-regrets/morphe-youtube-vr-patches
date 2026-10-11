@@ -202,7 +202,9 @@ public final class SponsorBlockSettings {
                 return;
             }
             mod.edit().putBoolean(VerboseLog.KEY_VERBOSE_LOGGING, on).apply();
-            log("verbose logging set: " + on);
+            // No log here: the tap's echo is VerboseLog.logGateToggle, printed ungated by the row
+            // before it calls this. A gated log at this point doubles the ON echo (the write's own
+            // preference listener has already opened the gate) and is swallowed on OFF.
         } catch (Throwable t) {
             log("verbose logging write failed: " + t);
         }
