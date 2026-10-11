@@ -172,6 +172,13 @@ gate before merging, and it shows on the pull request because the PR's head comm
 **Settings the workflows need:** Settings → Actions → General → Workflow permissions → *Allow GitHub
 Actions to create and approve pull requests*. Without it `open_pull_request.yml` fails with a 403.
 
+**The build needs no PAT.** `GITHUB_TOKEN` plus `permissions: packages: read` is enough to read the
+Morphe registry from GitHub Packages. The failures that looked like an auth problem were a YAML error
+(`steps:` sharing a line with an env value), which makes the workflow unparseable and fails the run in
+0s with no log at all -- a zero-second run without a log means a broken workflow file, not a credential.
+
+**Artifact globs.** `actions/upload-artifact` uses `@actions/glob`, which understands only a leading `!`
+negation, not `!(a|b)` extglobs. Use a `path: |` list with `!...` exclusion lines.
 **Attest.** `release.yml`'s `Attest` step fails on a private repository ("feature not available for
 user-owned private repositories") — cosmetic, and it should pass once the repository is public.
 
