@@ -146,7 +146,7 @@ public final class CategoryRows {
                 }
                 // **Leave the row completely alone** -- this hook runs for every row of every
                 // settings screen, and clearing the click listener here removed the app's own
-                // handler, which is how the "Mod settings" row stopped opening (verified on the
+                // handler, which is how the "Patch settings" row stopped opening (verified on the
                 // device). The colour is only put back if we were the ones who changed it.
                 if (remembered != null) {
                     title.setTextColor(remembered.intValue());

@@ -151,7 +151,7 @@ private val seekbarTimelineFingerprint = Fingerprint(
 /**
  * The settings panel's layout (`R.layout.accounts_and_settings_fragment`, 1.88.10).
  * Exactly one method references this inlined id — the panel fragment's inflate call —
- * so the class is identified by the id and the "Mod settings" row is hooked into its
+ * so the class is identified by the id and the "Patch settings" row is hooked into its
  * `(View, Bundle)` view-created callback. Structural: an inlined resource id plus a
  * method shape, nothing name-bound.
  */
@@ -159,7 +159,7 @@ private val seekbarTimelineFingerprint = Fingerprint(
 
 /**
  * `R.id.settings_fragment_holder`: the FrameLayout inside the settings card that the app's
- * settings *content* is added to. The "Mod settings" row is put at the top of that column so
+ * settings *content* is added to. The "Patch settings" row is put at the top of that column so
  * it reads as one of the app's own rows instead of floating at the card's top-right corner.
  * Hand-kept for the same reason as `seekbar_bg` — the layout references it, no code does —
  * and the row falls back to the corner when it resolves to nothing.
@@ -185,13 +185,13 @@ private fun Method.referencesResourceId(id: Int): Boolean {
 }
 
 // ---------------------------------------------------------------------------
-// The "Mod settings" hub. The app navigates its own settings sub-screens by
+// The "Patch settings" hub. The app navigates its own settings sub-screens by
 // comparing the clicked row's key against known keys and swapping a whole
 // fragment in; one of those keys is `developer_settings`, whose screen inflates
 // `developer_settings_prefs.xml` -- but the app removes that screen's list row
 // at startup, so the whole surface is dead UI. The hub reuses it, Morphe-style:
 //
-//   Settings -> "Mod settings" (row) -> hub screen with one entry per feature
+//   Settings -> "Patch settings" (row) -> hub screen with one entry per feature
 //              ("SponsorBlock" today) -> that feature's settings screen.
 //
 // One fragment class serves both levels: it re-opens *itself* with a fragment
@@ -228,7 +228,7 @@ private const val SCREEN_ARG_SB = "sb"
 private const val SB_ROW_KEY = "ytvr_mod_sb_screen"
 
 /** Titles: the hub and the SponsorBlock screen (the app's own title literal is only an anchor). */
-private const val HUB_TITLE = "Mod settings"
+private const val HUB_TITLE = "Patch settings"
 private const val SB_TITLE = "SponsorBlock"
 
 /** The activity classes whose back handling can be on screen with the hub open. Both are
@@ -340,7 +340,7 @@ private fun MutableMethod.fillBody(smali: String) {
 }
 
 /**
- * The "Mod settings" hub, wired into the live settings stack.
+ * The "Patch settings" hub, wired into the live settings stack.
  *
  * [screenClass] is the live stack's sub-screen fragment; [argsField] its arguments field (mined
  * from the click handler's own class), [sbXmlId] the id of the dead framework XML that becomes
@@ -365,10 +365,10 @@ private fun BytecodePatchContext.wireModSettingsHub(
             method.implementation?.instructions?.filterIsInstance<NarrowLiteralInstruction>()
                 ?.count { it.narrowLiteral in XML_RESOURCE_ID_WINDOW } == 1
     } ?: throw PatchException(
-        "Mod settings: no ()V setup with a single xml resource id in $subType",
+        "Patch settings: no ()V setup with a single xml resource id in $subType",
     )
     val titleMethod = screenClass.methods.singleOrNull { it.holdsConstant(DEV_TITLE_LITERAL) }
-        ?: throw PatchException("Mod settings: no \"$DEV_TITLE_LITERAL\" title site in $subType")
+        ?: throw PatchException("Patch settings: no \"$DEV_TITLE_LITERAL\" title site in $subType")
 
     var managerField: FieldReference? = null
     var managerCall: MethodReference? = null
@@ -407,7 +407,7 @@ private fun BytecodePatchContext.wireModSettingsHub(
             (instruction as? NarrowLiteralInstruction)?.let { "${instruction.opcode}:${it.narrowLiteral}" }
                 ?: instruction.opcode.toString()
         }
-        "Mod settings: the setup in $subType does not have the expected shape " +
+        "Patch settings: the setup in $subType does not have the expected shape " +
             "(manager field, manager call, single-int inflate, xml id); found " +
             "$aField, $gRef, $oRef, $devId; body: $dump"
     }
@@ -440,7 +440,7 @@ private fun BytecodePatchContext.wireModSettingsHub(
     val aFRef = setTitleRef
     val rRef = dividerRef
     check(wSuper != null && atField != null && aFRef != null && rRef != null) {
-        "Mod settings: the title site in $subType does not have the expected shape " +
+        "Patch settings: the title site in $subType does not have the expected shape " +
             "(super call, holder field, set-title call, divider call)"
     }
 
@@ -610,14 +610,14 @@ private fun BytecodePatchContext.wireModSettingsHub(
             }
     }
     check(classReads.size == 1) {
-        "Mod settings: expected exactly one getClass call in ${swapRef.definingClass}, " +
+        "Patch settings: expected exactly one getClass call in ${swapRef.definingClass}, " +
             "found ${classReads.size}"
     }
     val (classReadIndex, classRead) = classReads.single()
     val receiverRegister = (classRead as com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction).registerC
     val bundleRegister = swapMethod.implementation!!.registerCount - 1
     check(receiverRegister < 16 && bundleRegister < 16) {
-        "Mod settings: the swap's registers are too wide for a 35c invoke " +
+        "Patch settings: the swap's registers are too wide for a 35c invoke " +
             "($receiverRegister, $bundleRegister)"
     }
     swapMethod.replaceInstruction(
@@ -638,12 +638,12 @@ private fun BytecodePatchContext.wireModSettingsHub(
     val viewCreated = holderClass.methods.singleOrNull { method ->
         method.parameterTypes.map { it.toString() } ==
             listOf("Landroid/view/View;", "Landroid/os/Bundle;")
-    } ?: throw PatchException("Mod settings: no view-created callback on $holderType")
+    } ?: throw PatchException("Patch settings: no view-created callback on $holderType")
     val listenerNews = viewCreated.implementation!!.instructions.filter { instruction ->
         instruction.opcode == Opcode.NEW_INSTANCE
     }
     check(listenerNews.size == 1) {
-        "Mod settings: expected exactly one listener constructed in the holder's " +
+        "Patch settings: expected exactly one listener constructed in the holder's " +
             "view-created callback, found ${listenerNews.size}"
     }
     val listenerType = (listenerNews.single() as ReferenceInstruction)
@@ -653,7 +653,7 @@ private fun BytecodePatchContext.wireModSettingsHub(
         method.parameterTypes.map { it.toString() } == listOf("Landroid/view/View;")
     }
     check(listenerClicks.size == 1) {
-        "Mod settings: expected exactly one click handler on $listenerType, found ${listenerClicks.size}"
+        "Patch settings: expected exactly one click handler on $listenerType, found ${listenerClicks.size}"
     }
     val popRefs = listenerClicks.single().implementation!!.instructions.mapNotNull { instruction ->
         (instruction as? ReferenceInstruction)?.reference.let { reference ->
@@ -666,7 +666,7 @@ private fun BytecodePatchContext.wireModSettingsHub(
         }
     }
     check(popRefs.size == 1) {
-        "Mod settings: expected exactly one holder call from the arrow's click handler, " +
+        "Patch settings: expected exactly one holder call from the arrow's click handler, " +
             "found ${popRefs.size}"
     }
     val popRef = popRefs.single()
@@ -707,7 +707,7 @@ private fun BytecodePatchContext.wireModSettingsHub(
     val destroyed = oRef.definingClass
     val baseDestroy = mutableClassDefBy(destroyed).methods.singleOrNull { method ->
         method.name == "h" && method.returnType == "V" && method.parameterTypes.isEmpty()
-    } ?: throw PatchException("Mod settings: no view-destroyed callback on $destroyed")
+    } ?: throw PatchException("Patch settings: no view-destroyed callback on $destroyed")
     baseDestroy.addInstructions(
         0,
         "invoke-static {p0}, Lapp/ytvr/extension/ModSettingsUi;->onSettingsHidden(Ljava/lang/Object;)V",
@@ -721,9 +721,9 @@ private fun BytecodePatchContext.wireModSettingsHub(
         val back = activity.methods.singleOrNull { method ->
             method.name == "onBackPressed" && method.returnType == "V" &&
                 method.parameterTypes.isEmpty()
-        } ?: throw PatchException("Mod settings: no onBackPressed on $activityType")
+        } ?: throw PatchException("Patch settings: no onBackPressed on $activityType")
         check(back.implementation!!.registerCount >= 2) {
-            "Mod settings: $activityType back handler has no scratch register " +
+            "Patch settings: $activityType back handler has no scratch register " +
                 "(registers=${back.implementation!!.registerCount})"
         }
         back.addInstructionsWithLabels(
@@ -760,11 +760,11 @@ private fun BytecodePatchContext.relabelParallelStack(target: String) {
     val parallelClass = try {
         mutableClassDefBy(target)
     } catch (exception: Exception) {
-        throw PatchException("Mod settings: the parallel-stack fragment $target did not come back mutable", exception)
+        throw PatchException("Patch settings: the parallel-stack fragment $target did not come back mutable", exception)
     }
 
     val titleMethod = parallelClass.methods.singleOrNull { it.holdsConstant(DEV_TITLE_LITERAL) }
-        ?: throw PatchException("Mod settings: no \"$DEV_TITLE_LITERAL\" title site in $target")
+        ?: throw PatchException("Patch settings: no \"$DEV_TITLE_LITERAL\" title site in $target")
     for ((index, instruction) in titleMethod.implementation!!.instructions.toList().withIndex()) {
         val reference = (instruction as? ReferenceInstruction)?.reference
         if (reference is StringReference && reference.string == DEV_TITLE_LITERAL) {
@@ -778,7 +778,7 @@ private fun BytecodePatchContext.relabelParallelStack(target: String) {
             method.implementation?.instructions?.filterIsInstance<NarrowLiteralInstruction>()
                 ?.count { it.narrowLiteral in XML_RESOURCE_ID_WINDOW } == 1
     } ?: throw PatchException(
-        "Mod settings: no ()V setup with a single xml resource id in $target",
+        "Patch settings: no ()V setup with a single xml resource id in $target",
     )
     val setupInstructions = setupMethod.implementation!!.instructions.toList()
     val constIndex = setupInstructions.indexOfFirst { instruction ->
@@ -790,7 +790,7 @@ private fun BytecodePatchContext.relabelParallelStack(target: String) {
         if (later.opcode == Opcode.INVOKE_VIRTUAL || later.opcode == Opcode.INVOKE_VIRTUAL_RANGE) {
             val reference = (later as ReferenceInstruction).reference.let { it as MethodReference }
             check(reference.parameterTypes.map { it.toString() } == listOf("I")) {
-                "Mod settings: the call after the xml id in $target is not the single-int " +
+                "Patch settings: the call after the xml id in $target is not the single-int " +
                     "inflate call ($reference)"
             }
             inflateIndex = follow
@@ -798,7 +798,7 @@ private fun BytecodePatchContext.relabelParallelStack(target: String) {
         }
     }
     check(inflateIndex > constIndex) {
-        "Mod settings: no inflate call found after the xml resource id in $target"
+        "Patch settings: no inflate call found after the xml resource id in $target"
     }
     setupMethod.addInstructions(inflateIndex + 1, "return-void")
 }
@@ -968,7 +968,7 @@ val sponsorBlockPatch = bytecodePatch(
     // Upstream's own default map: what a phone user gets before touching anything, and deliberately
     // conservative -- only sponsor skips by itself, the five categories upstream leaves to a Skip
     // button are seekbar-only here (this player has no button), and preview/hook/filler are left
-    // alone. The Mod settings pickers change any of them per category at runtime.
+    // alone. The Patch settings pickers change any of them per category at runtime.
     //
     // `seekbar-only` is the exception, and it is reachable from here before it is reachable from
     // the screen: a switch cannot express "draw it and never skip", so a category left at
@@ -1348,7 +1348,7 @@ val sponsorBlockPatch = bytecodePatch(
         )
 
         // ------------------------------------------------------------------
-        // The "Mod settings" hub. The XML restructure (entry rows into the dead
+        // The "Patch settings" hub. The XML restructure (entry rows into the dead
         // developer-settings screen, the SponsorBlock rows into the dead
         // framework fragment's XML, the entry row onto the main lists) plus the
         // bytecode edits: every settings click handler that routes the
@@ -1372,7 +1372,7 @@ val sponsorBlockPatch = bytecodePatch(
             }
         }
         check(clickHandlers.isNotEmpty()) {
-            "Mod settings: no settings click handler carries the \"$DEV_ROW_KEY\" branch"
+            "Patch settings: no settings click handler carries the \"$DEV_ROW_KEY\" branch"
         }
 
         // Mine each handler: the key field it compares, the holder field and swap call its
@@ -1382,7 +1382,7 @@ val sponsorBlockPatch = bytecodePatch(
         val minings = mutableListOf<SettingsClickMining>()
         for (clickHandler in clickHandlers) {
             val instructions = clickHandler.implementation?.instructions?.toList()
-                ?: throw PatchException("Mod settings: a click handler has no body")
+                ?: throw PatchException("Patch settings: a click handler has no body")
             var routeTarget: String? = null
             var keyField: FieldReference? = null
             var holderField: FieldReference? = null
@@ -1471,7 +1471,7 @@ val sponsorBlockPatch = bytecodePatch(
                 }
             } == true
         } ?: throw PatchException(
-            "Mod settings: no click handler had the expected live-stack shape " +
+            "Patch settings: no click handler had the expected live-stack shape " +
                 "(key field, holder field, fragment swap, super fallback, holder-typed title " +
                 "field; candidates: " + minings.map { it.routeTarget } + ")",
         )
@@ -1480,13 +1480,13 @@ val sponsorBlockPatch = bytecodePatch(
             mutableClassDefBy(mining.routeTarget)
         } catch (exception: Exception) {
             throw PatchException(
-                "Mod settings: the sub-screen fragment ${mining.routeTarget} did not come back mutable",
+                "Patch settings: the sub-screen fragment ${mining.routeTarget} did not come back mutable",
                 exception,
             )
         }
         val titleMethod = screenClass.methods.singleOrNull { it.holdsConstant(DEV_TITLE_LITERAL) }
             ?: throw PatchException(
-                "Mod settings: no \"$DEV_TITLE_LITERAL\" title site in ${screenClass.type}",
+                "Patch settings: no \"$DEV_TITLE_LITERAL\" title site in ${screenClass.type}",
             )
         val talksToLiveHolder = titleMethod.implementation!!.instructions.any { instruction ->
             (instruction as? ReferenceInstruction)?.reference.let { reference ->
@@ -1495,7 +1495,7 @@ val sponsorBlockPatch = bytecodePatch(
             }
         }
         check(talksToLiveHolder) {
-            "Mod settings: ${mining.routeTarget} does not talk to the live holder " +
+            "Patch settings: ${mining.routeTarget} does not talk to the live holder " +
                 "${mining.holderType} -- the hub cannot be wired here"
         }
 
@@ -1520,7 +1520,7 @@ val sponsorBlockPatch = bytecodePatch(
             }
         }
         val args = argsField ?: throw PatchException(
-            "Mod settings: the settings fragment's setup never reads its arguments -- " +
+            "Patch settings: the settings fragment's setup never reads its arguments -- " +
                 "cannot branch the hub on a fragment argument",
         )
 
@@ -1548,7 +1548,7 @@ val sponsorBlockPatch = bytecodePatch(
                 }
         }
         check(sbXmlCandidates.size == 1) {
-            "Mod settings: expected exactly one candidate for the dead framework preferences " +
+            "Patch settings: expected exactly one candidate for the dead framework preferences " +
                 "XML, found ${sbXmlCandidates.size} (${sbXmlCandidates.map { it.type }})"
         }
         var sbXmlId: Int? = null
@@ -1562,7 +1562,7 @@ val sponsorBlockPatch = bytecodePatch(
             }
         }
         val sbId = sbXmlId ?: throw PatchException(
-            "Mod settings: the dead framework fragment carries no xml resource id",
+            "Patch settings: the dead framework fragment carries no xml resource id",
         )
 
         // The parallel stack: same re-keyed row, but no hub -- just the relabelled title and the

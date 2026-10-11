@@ -158,8 +158,8 @@ The one variation nobody had tried was YouTube VR's **own** store id on a clone 
 **The system behaved exactly as before**, same launch, same two lines:
 
 ```
-W/AppManagerInternal( 3526): Entitlement for packageName=app.ytvr.youtubevr not found, channels=[Store, Q4B, PcStore]
-W/OVRLibrary(10805): null cursor received for query content://com.oculus.ocms.library/apps/app.ytvr.youtubevr
+W/AppManagerInternal( 3526): Entitlement for packageName=app.morphe.android.youtube not found, channels=[Store, Q4B, PcStore]
+W/OVRLibrary(10805): null cursor received for query content://com.oculus.ocms.library/apps/app.morphe.android.youtube
 ```
 
 So the metadata is not consulted for this card at all. The lookup is keyed by **package name**, and

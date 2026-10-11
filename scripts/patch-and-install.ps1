@@ -45,7 +45,7 @@ param(
 
     # Package name for the clone. Must be unique per install. Any name works; this one makes no
     # claim about the vendor and cannot be confused with the store app.
-    [string] $PackageName = 'app.ytvr.youtubevr',
+    [string] $PackageName = 'app.morphe.android.youtube',
 
     # Name shown in the headset's library (App name patch). Pass '' to keep the stock name.
     [string] $AppName = 'YouTube VR (patched)',
@@ -93,7 +93,7 @@ param(
 
     # Opt-in patches to turn on for this run, for the patches that are off by default. SponsorBlock
     # is one (`default = false`), and it is listed here by default because it is part of the app
-    # this repo installs: the patch also builds the **Mod settings** hub and the SponsorBlock
+    # this repo installs: the patch also builds the **Patch settings** hub and the SponsorBlock
     # settings screen, so a run that leaves it out silently removes both from the installed app --
     # which is exactly what happened on 2026-10-11, when every rebuild used this script's defaults
     # and the user lost the settings screens. It is in -RequirePatches too, so the omission fails
