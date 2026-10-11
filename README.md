@@ -177,7 +177,7 @@ One thing to know before reporting a bug:
 ## 🩹 Patches list
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.22.1](https://github.com/commit-regrets/morphe-youtube-vr-patches/releases/tag/v1.22.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;11 patches total
+> **[v1.22.2-develop.1](https://github.com/commit-regrets/morphe-youtube-vr-patches/releases/tag/v1.22.2-develop.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`develop`&nbsp;&nbsp;•&nbsp;&nbsp;11 patches total
 <details open>
 <summary>📦 YouTube VR&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
