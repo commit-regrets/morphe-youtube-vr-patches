@@ -221,6 +221,18 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     }
 
     /**
+     * The echo of the row's own tap, printed through the gate **deliberately bypassed**: it is the
+     * confirmation of a tap that by definition changes the gate, so gating it would swallow half
+     * of what it reports. Measured 2026-10-11: a tap ON logs while the gate is still shut, and a
+     * tap OFF loses the race against this class's own preference listener, which closes the gate
+     * from the disk-write thread before the caller reaches its log call -- the value landed both
+     * times, the line never printed. This is the only ungated print in the extension.
+     */
+    public static void logGateToggle(boolean value) {
+        System.out.println(TAG + ": verbose logging set: " + value);
+    }
+
+    /**
      * The live half of the toggle: androidx persists the row's own Boolean, and this picks the new
      * value up wherever the write came from. No restart, no re-read on the log path. The build's
      * default is the fallback, so clearing the row returns the gate to what the build asked for.

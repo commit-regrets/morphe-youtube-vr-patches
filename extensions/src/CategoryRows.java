@@ -241,6 +241,10 @@ public final class CategoryRows {
 
     /** Persists the choice in the file the gate reads, and opens or closes the gate immediately. */
     private static void setLogGate(boolean on) {
+        // The echo comes first and ungated: the write below hands the gate its new state, and a
+        // gated echo is exactly the one line a viewer needs to see a tap worked (see
+        // VerboseLog.logGateToggle).
+        VerboseLog.logGateToggle(on);
         SponsorBlockSettings.setVerboseLogging(on);
         VerboseLog.setEnabled(on);
     }

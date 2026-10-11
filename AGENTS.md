@@ -158,8 +158,12 @@ above hangs off it.
   line with no tap, while a build that never asks for the diagnostics (CI, a release, an end user
   applying the bundle) is silent. A stored choice outranks the option in both directions.
 * **One gate.** `VerboseLog.log(tag, message)` is the only place in `extensions/src` that prints;
-  every class's `log(String)` is a one-line delegation to it, and `android.util.Log` is used nowhere in
-  the extension. A closed gate reads one volatile field and returns before the message is formatted.
+  every class's `log(String)` is a one-line delegation to it, and `android.util.Log` is used nowhere
+  in the extension. A closed gate reads one volatile field and returns before the message is
+  formatted. The one deliberate exception is `VerboseLog.logGateToggle(value)`, the ungated echo of
+  the verbose row's own tap: gating it swallows it (a tap ON logs while the gate is still shut; a
+  tap OFF loses the race against the preference listener closing the gate from the disk-write
+  thread), and the echo is the one line that proves a tap worked.
 * **Testing the silent default** on a device that has had the row on needs
   `adb shell pm clear app.morphe.android.youtube` (the sticky value survives reinstall; this wipes
   SponsorBlock settings too) or a toggle-off.
