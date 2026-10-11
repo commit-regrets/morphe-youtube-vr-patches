@@ -213,6 +213,23 @@ the commits since the last tag justify one (`.releaserc` also allows pre-release
 docs-only pushes) and cancels superseded runs, so a burst of pushes costs one build. That check is the
 gate before merging, and it shows on the pull request because the PR's head commit is the one it built.
 
+**Why the release does not use `cycjimmy/semantic-release-action`.** `release.yml` invokes
+`npx semantic-release` from this repository's own `node_modules`, and that is load-bearing. The action
+ran `npm ci --only=prod` inside its own directory and required `semantic-release` from there, so it
+resolved `conventional-changelog-writer` from its private tree -- whose lockfile pins writer **8.2.0**,
+with handlebars -- while the changelog *preset* was loaded from this repository. Preset v10 depends on
+`@conventional-changelog/template`, whose legacy-writer guard plants a handlebars `mainTemplate` that
+writer@8 compiles and writer@9 ignores, so the release died with "Missing helper:
+conventional-changelog-conventionalcommits requires conventional-changelog-writer@9 or newer". That
+message is a planted guard, not a version check, and `overrides` can never reach the action's tree --
+which is why pinning the writer there was inert and why the preset had to drop to v9 to match writer@8.
+Running our own semantic-release keeps the preset and the writer in one tree, so the manifest and
+lockfile here are what decide. Two consequences worth keeping: the `conventional-changelog-writer`
+override in `package.json` is still needed, because without it npm hoists commit-analyzer's writer@8 to
+the top level and the v10 preset imports *that*; and the action's `new_release_published` output is now
+reproduced in shell as a tag pointing at HEAD, so do not replace that with log parsing -- semantic-release
+creates the version tag after publishing, and a failed release aborts the step under `set -e`.
+
 **Release commits.** The workflow commits its version bump (`CHANGELOG.md`, `gradle.properties`,
 `patches-bundle.json`, `patches-list.json`, `README.md`) and back-merges into `develop`, so **always
 `git fetch` and rebase before pushing** and never edit those generated files by hand.

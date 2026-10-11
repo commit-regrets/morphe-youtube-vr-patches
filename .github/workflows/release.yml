@@ -38,17 +38,28 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # npm ci, deliberately: the lockfile pins @semantic-release/release-notes-generator to
-        # 15.0.0-beta.3 (via the overrides entry) and a bare npm install re-resolves the tree and
-        # can drop an override that sits outside the parent's declared range -- which is exactly
-        # how a release run re-flagged the old writer after the fix had landed.
+        # npm ci, deliberately: the lockfile is the contract now. semantic-release runs out of this
+        # tree, so its preset and its conventional-changelog-writer are resolved here, together,
+        # exactly as `npm ls` would show -- the failure mode this file used to have was those two
+        # being split across two different installs.
         run: npm ci
 
-      - name: Debug writer resolution
+      # semantic-release verifies it is allowed to push before it does anything else. Give it an
+      # explicitly authenticated origin rather than relying on the checked-out remote's form, and
+      # a committer identity for the version-bump commit @semantic-release/git creates.
+      - name: Configure Git for the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm ls conventional-changelog-writer --all
-          find node_modules -maxdepth 5 -name conventional-changelog-writer -type d
-          node .github/scripts/release-debug.mjs
+          git remote set-url origin \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # The release only works while the preset and the writer agree, so print both on every run.
+      # This is the check that would have caught the split-tree failure before it published.
+      - name: Check the changelog tooling resolves consistently
+        run: node .github/scripts/release-debug.mjs
 
       # The extension build needs an Android platform jar (for javac) and R8 (for d8). Neither
       # exists on the runner, so fetch both and hand them over through the environment -- the
@@ -67,13 +78,27 @@ jobs:
             https://maven.google.com/com/android/tools/r8/9.5.23/r8-9.5.23.jar
           echo "R8_JAR=$tools/r8.jar" >> "$GITHUB_ENV"
 
-      # Semantic release runs its own Gradle build command.
-      # Only dev and main branch will generate a release as specified by .releaserc
+      # semantic-release runs directly, not through cycjimmy/semantic-release-action. That action
+      # installed its own semantic-release tree and resolved conventional-changelog-writer from
+      # there -- writer 8.2.0, outside the reach of this repository's lockfile and `overrides` --
+      # while loading the changelog preset from this repository. Preset v10 needs a writer@9, so
+      # that split tree threw "Missing helper" on every run. Running our own semantic-release keeps
+      # the preset and the writer in one tree, which is the whole point.
       - name: Release
-        uses: cycjimmy/semantic-release-action@v6
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "new_release_published=false" >> "$GITHUB_OUTPUT"
+          echo "new_release_git_tag=" >> "$GITHUB_OUTPUT"
+          # No flags: this is the same invocation the action made, just from our own tree.
+          npx semantic-release | tee semantic-release.log
+          if git tag --points-at HEAD | grep -q .; then
+            tag=$(git tag --points-at HEAD | head -n1)
+            echo "new_release_published=true" >> "$GITHUB_OUTPUT"
+            echo "new_release_git_tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Attest
         if: steps.release.outputs.new_release_published == 'true'
