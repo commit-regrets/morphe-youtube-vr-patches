@@ -140,6 +140,27 @@ from the device.
   outro/music_offtopic = `seekbar-only`; preview/hook/filler = `ignore`), and `migrateOldDefaults()`
   moves rows still holding this port's older defaults so the change is actually seen.
 
+## Logging
+
+The extension prints nothing unless its one gate is open. `VerboseLog` owns that gate and everything
+above hangs off it.
+
+* **The row.** `Verbose logging`, key `ytvr_mod_verbose_logging`, a `SwitchPreference` on the
+  "Patch settings" hub, off by default (in the extension and in the row's own
+  `android:defaultValue`). It is live -- a `SharedPreferences` listener refreshes the gate's field, so
+  a toggle takes effect on the next log line -- and its stored value is sticky across
+  `adb install -r`.
+* **`-Diagnostics` also opens it.** The `Verbose diagnostics (development only)` option selects which
+  hooks are installed *and* the gate's initial default, so a development build logs from its first
+  line with no tap, while a build that never asks for the diagnostics (CI, a release, an end user
+  applying the bundle) is silent. The row outranks the option in both directions.
+* **One gate.** `VerboseLog.log(tag, message)` is the only place in `extensions/src` that prints;
+  every class's `log(String)` is a one-line delegation to it, and `android.util.Log` is used nowhere in
+  the extension. A closed gate reads one volatile field and returns before the message is formatted.
+* **Testing the silent default** on a device that has had the row on needs
+  `adb shell pm clear app.morphe.android.youtube` (the sticky value survives reinstall; this wipes
+  SponsorBlock settings too) or a toggle-off.
+
 ## Project state and open problems
 
 This file is about *how to work here*, not about what the project currently does. The state of the
