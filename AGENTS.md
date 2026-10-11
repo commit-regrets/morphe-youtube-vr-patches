@@ -47,6 +47,12 @@ pwsh -NoProfile -File scripts\patch-and-install.ps1 -Apk apk\com.google.android.
   `BUILD SUCCESSFUL`, the install silently uses the **previous** bundle — check the file's timestamp.
 * The script fails loudly if the applied patch set is missing a patch you need (`-ExtraPatches`).
   `SponsorBlock` is in the default set; it also builds the "Patch settings" hub screen.
+* `buildAndroid` also runs **Spotless** (ktlint for `patches/src/main/kotlin`, google-java-format
+  AOSP for `extensions/src`) and **detekt** (defaults, baselined at `config/detekt/baseline.xml`);
+  both are ratcheted/baselined so pre-existing code never churns and new code must pass. After
+  touching sources run `./gradlew spotlessApply detektBaseline` if the gate fails on old patterns.
+  The extension's javac runs `-Xlint:all` (warnings, not errors).
+
 * A green `Applied:` list is **not** proof the right method was patched. Verify on the device.
 
 ## Device access
