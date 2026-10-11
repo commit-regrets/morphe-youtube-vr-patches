@@ -40,13 +40,13 @@ $env:JAVA_HOME="C:\Users\<your-user>\tools\jdk21"
 $env:GITHUB_ACTOR=(gh api user -q .login); $env:GITHUB_TOKEN=(gh auth token)   # for dependency fetch
 .\gradlew.bat buildAndroid --no-daemon --console=plain
 pwsh -NoProfile -File scripts\patch-and-install.ps1 -Apk apk\com.google.android.apps.youtube.vr.oculus.apk `
-    -PackageName com.google.android.apps.youtube.vr.oculus.morphe -AppName "YouTube VR (patched)"
+    -PackageName app.morphe.android.youtube -AppName "YouTube VR (patched)"
 ```
 
 * The script uses the newest `patches/build/libs/patches-*.mpp`. If `gradlew` did not actually print
   `BUILD SUCCESSFUL`, the install silently uses the **previous** bundle — check the file's timestamp.
 * The script fails loudly if the applied patch set is missing a patch you need (`-ExtraPatches`).
-  `SponsorBlock` is in the default set; it also builds the "Mod settings" hub screen.
+  `SponsorBlock` is in the default set; it also builds the "Patch settings" hub screen.
 * A green `Applied:` list is **not** proof the right method was patched. Verify on the device.
 
 ## Device access
@@ -122,7 +122,7 @@ from the device.
 | dialogs are never composited into the VR panel (`AlertDialog.show()` succeeds, nothing appears) | picker UI must not be a window |
 | views added to the window's **decor** are not drawn either — only the app's own content subtree is rendered | picker UI must live *inside a row* |
 | the row's text column is a **`RelativeLayout`** (title, then summary with `layout_below="@android:id/title"`) | `LinearLayout.LayoutParams` are ignored and the view lands on top of the summary |
-| the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Mod settings" row once); return immediately for foreign rows |
+| the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
 
 ## SponsorBlock notes
@@ -157,11 +157,12 @@ and the identity-matrix probe stays gated behind `-Diagnostics`. Do not re-hamme
 request, which `open_pull_request.yml` opens (and keeps updated) automatically on every push to
 `develop`. Never commit to `main` directly.
 
-**Nothing is built or released by a push.** `release.yml` is `workflow_dispatch` only, so a release
-happens when someone asks for one: dispatch it from `main`, and semantic-release decides whether the
-commits since the last tag justify one (`.releaserc` also allows pre-releases from `develop`).
-`build_pull_request.yml` compiles the bundle for pull requests into `main`, and can be dispatched by
-hand for any branch. That PR build is the gate — not a green run on a push.
+**Nothing is built or released by a push to `main`.** `release.yml` is `workflow_dispatch` only, so a
+release happens when someone asks for one: dispatch it from `main`, and semantic-release decides whether
+the commits since the last tag justify one (`.releaserc` also allows pre-releases from `develop`).
+`build.yml` compiles the bundle on every push to `develop` that touches code (its `paths` filter skips
+docs-only pushes) and cancels superseded runs, so a burst of pushes costs one build. That check is the
+gate before merging, and it shows on the pull request because the PR's head commit is the one it built.
 
 **Release commits.** The workflow commits its version bump (`CHANGELOG.md`, `gradle.properties`,
 `patches-bundle.json`, `patches-list.json`, `README.md`) and back-merges into `develop`, so **always

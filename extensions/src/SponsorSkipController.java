@@ -442,7 +442,7 @@ public final class SponsorSkipController {
                         }
                         List<SponsorSegment> sorted =
                             new ArrayList<SponsorSegment>(fetched);
-                        // The Mod settings row's minimum: a segment shorter than this is dropped
+                        // The Patch settings row's minimum: a segment shorter than this is dropped
                         // before it can skip or be drawn. Highlight is exempt, as upstream exempts
                         // it -- a highlight is a point of interest, not a stretch to skip past.
                         long minMs = SponsorBlockSettings.minSegmentDurationMs();

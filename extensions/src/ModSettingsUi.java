@@ -1,7 +1,7 @@
 package app.ytvr.extension;
 
 /**
- * Bridges the system back affordance to the "Mod settings" hub's navigation.
+ * Bridges the system back affordance to the "Patch settings" hub's navigation.
  *
  * Horizon OS draws its own back button on a focused 2D panel, and the settings card's own arrow
  * is hidden (the patch sets it gone in the holder layouts) so the screen shows exactly one back
@@ -21,7 +21,7 @@ public final class ModSettingsUi {
     /** Called by the settings holder when its view is created. */
     public static void onSettingsShown(Object settings) {
         sSettings = settings;
-        System.out.println("SponsorBlock: mod settings back registered");
+        System.out.println("SponsorBlock: patch settings back registered");
     }
 
     /**
@@ -32,7 +32,7 @@ public final class ModSettingsUi {
     public static void onSettingsHidden(Object fragment) {
         if (fragment == sSettings) {
             sSettings = null;
-            System.out.println("SponsorBlock: mod settings back deregistered");
+            System.out.println("SponsorBlock: patch settings back deregistered");
         }
     }
 
@@ -41,7 +41,7 @@ public final class ModSettingsUi {
      * was consumed (the caller must not run its own handling).
      */
     public static boolean goBack() {
-        System.out.println("SponsorBlock: mod settings back pressed, registered=" + (sSettings != null));
+        System.out.println("SponsorBlock: patch settings back pressed, registered=" + (sSettings != null));
         Object settings = sSettings;
         if (settings == null) {
             return false;
@@ -50,7 +50,7 @@ public final class ModSettingsUi {
             settings.getClass().getMethod("YtvrSbGoBack").invoke(settings);
             return true;
         } catch (Exception exception) {
-            System.out.println("SponsorBlock: mod settings back failed: " + exception);
+            System.out.println("SponsorBlock: patch settings back failed: " + exception);
             return false;
         }
     }

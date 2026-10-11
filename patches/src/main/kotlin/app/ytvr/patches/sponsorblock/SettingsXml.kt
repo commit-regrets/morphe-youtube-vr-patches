@@ -10,9 +10,9 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 /**
- * Restructures the app's preferences XML for the "Mod settings" hub, Morphe-style:
+ * Restructures the app's preferences XML for the "Patch settings" hub, Morphe-style:
  *
- *   Settings -> "Mod settings" (row) -> hub screen with one entry per feature
+ *   Settings -> "Patch settings" (row) -> hub screen with one entry per feature
  *             ("SponsorBlock" today) -> that feature's settings screen.
  *
  * The app builds its settings from `res/xml/settings_prefs.xml` (immersive) and
@@ -21,7 +21,7 @@ import javax.xml.transform.stream.StreamResult
  * those keys is `developer_settings`, whose screen inflates `res/xml/developer_settings_prefs.xml`
  * -- a screen whose list row the app removes at startup, i.e. dead UI. This patch:
  *
- * - adds a `Mod settings` row (key `ytvr_mod_settings`) to the top of both main lists,
+ * - adds a `Patch settings` row (key `ytvr_mod_settings`) to the top of both main lists,
  * - replaces the *contents* of `developer_settings_prefs.xml` with the hub's entry rows, and
  * - replaces the *contents* of a second dead XML -- the generic preferences screen of the app's
  *   unused framework `PreferenceFragment`, passed in as [sbScreenXmlId] (mined from the bytecode,
@@ -36,7 +36,7 @@ import javax.xml.transform.stream.StreamResult
  * Why XML rather than building the rows from code: R8 keeps the androidx *class names* (inflating
  * from XML needs them) but renames their *members* -- `androidx.preference.Preference`'s `setTitle`,
  * `setKey`, `setSummary` and `addPreference` are `L(...)`, `X(...)` and so on in this APK. Reflection
- * by name silently did nothing, which is what the "I don't find Mod settings anywhere" report was.
+ * by name silently did nothing, which is what the "I don't find Patch settings anywhere" report was.
  * XML attributes carry no such risk.
  *
  * The files are *found*, never guessed: a bytecode patch's `fileWorkspace` is a scratch directory,
@@ -52,7 +52,7 @@ internal fun restructureSettingsXmls(
     val mainFiles = MAIN_SETTINGS_XML_NAMES.flatMap { name -> findFiles(sessionRoot, name, 0) }
     if (mainFiles.isEmpty()) {
         throw PatchException(
-            "Mod settings: no settings preferences XML under " + sessionRoot.absolutePath +
+            "Patch settings: no settings preferences XML under " + sessionRoot.absolutePath +
                 "; looked for " + MAIN_SETTINGS_XML_NAMES.joinToString(),
         )
     }
@@ -60,7 +60,7 @@ internal fun restructureSettingsXmls(
     val hubFiles = findFiles(sessionRoot, HUB_XML_NAME, 0)
     if (hubFiles.isEmpty()) {
         throw PatchException(
-            "Mod settings: no $HUB_XML_NAME under " + sessionRoot.absolutePath +
+            "Patch settings: no $HUB_XML_NAME under " + sessionRoot.absolutePath +
                 " -- the hub has nothing to be inflated from",
         )
     }
@@ -69,7 +69,7 @@ internal fun restructureSettingsXmls(
     val sbFiles = findFiles(sessionRoot, "$sbName.xml", 0)
     if (sbFiles.isEmpty()) {
         throw PatchException(
-            "Mod settings: the mined xml id ${"0x%08x".format(sbScreenXmlId)} resolves to " +
+            "Patch settings: the mined xml id ${"0x%08x".format(sbScreenXmlId)} resolves to " +
                 "'$sbName' but no $sbName.xml exists under " + sessionRoot.absolutePath,
         )
     }
@@ -112,7 +112,7 @@ private fun moveHolderBackButtonToLeft(xml: File) = editXml(xml) { root ->
         }
     }
     if (!found) {
-        throw PatchException("Mod settings: no back button to move in ${xml.name}")
+        throw PatchException("Patch settings: no back button to move in ${xml.name}")
     }
 }
 
@@ -123,7 +123,7 @@ private fun resolveResourceName(sessionRoot: File, id: Int): String {
     val publicFiles = findFiles(sessionRoot, "public.xml", 0)
     if (publicFiles.isEmpty()) {
         throw PatchException(
-            "Mod settings: no public.xml under " + sessionRoot.absolutePath +
+            "Patch settings: no public.xml under " + sessionRoot.absolutePath +
                 " -- cannot resolve the mined xml id to a file",
         )
     }
@@ -139,7 +139,7 @@ private fun resolveResourceName(sessionRoot: File, id: Int): String {
         }
     }
     throw PatchException(
-        "Mod settings: the mined xml id ${"0x%08x".format(id)} is not in any public.xml",
+        "Patch settings: the mined xml id ${"0x%08x".format(id)} is not in any public.xml",
     )
 }
 
@@ -172,7 +172,7 @@ private inline fun editXml(xml: File, edit: (root: Element) -> Unit) {
 }
 
 /**
- * Puts the "Mod settings" row at the top of one main settings list. Idempotence is by the row's
+ * Puts the "Patch settings" row at the top of one main settings list. Idempotence is by the row's
  * key; rows of an older flat layout of this patch (same `ytvr_mod_` key prefix) are removed so a
  * reused decode migrates instead of doubling.
  */
@@ -194,7 +194,7 @@ private fun addModSettingsEntry(xml: File) = editXml(xml) { root ->
     }
 }
 
-private const val MAIN_ROW_TITLE = "Mod settings"
+private const val MAIN_ROW_TITLE = "Patch settings"
 
 /**
  * Replaces the whole content of the hub's preferences XML with the feature entry rows. The root
@@ -409,23 +409,23 @@ private fun rowDefault(configured: String?, highlight: Boolean): String {
  */
 private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, String>) {
     val resDir = screenXml.parentFile?.parentFile
-        ?: throw PatchException("Mod settings: ${screenXml.absolutePath} has no res/ ancestor")
+        ?: throw PatchException("Patch settings: ${screenXml.absolutePath} has no res/ ancestor")
     val valuesDir = File(resDir, "values")
     val arraysFile = File(valuesDir, "arrays.xml")
     if (!arraysFile.exists()) {
         throw PatchException(
-            "Mod settings: no ${arraysFile.absolutePath} to put the behaviour arrays in; the " +
+            "Patch settings: no ${arraysFile.absolutePath} to put the behaviour arrays in; the " +
                 "category pickers would inflate without entries",
         )
     }
     // A guard, not a nicety: this is the one place where the patch assumes `poi_highlight` is a
     // category, and the arrays must line up with the rows element for element.
     check(CATEGORIES.any { it.first == "poi_highlight" }) {
-        "Mod settings: the highlight category is missing, so its picker would share the " +
+        "Patch settings: the highlight category is missing, so its picker would share the " +
             "skip-once list upstream refuses for it"
     }
     check(categoryDefaults.isNotEmpty()) {
-        "Mod settings: no per-category defaults were passed, so every picker would default to " +
+        "Patch settings: no per-category defaults were passed, so every picker would default to " +
             "the first entry (" + BEHAVIOUR_ENTRY_VALUES.first() + ") regardless of the options"
     }
     editXml(arraysFile) { root ->

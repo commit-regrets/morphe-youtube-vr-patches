@@ -7,10 +7,6 @@ Patches for YouTube VR (Meta Quest / Horizon OS), for use with
 
 Patches for the YouTube VR app for Meta Quest (`com.google.android.apps.youtube.vr.oculus`).
 
-YouTube VR is a heavily obfuscated XR app, so most patches written for the phone app do not apply
-(Shorts, miniplayer, navigation bar, fullscreen gestures, ...). This repository keeps the ones that
-make sense on a VR headset.
-
 **Version support is pinned to 1.88.10** (`Constants.kt`). R8 reassigns every name per release, so a
 store update needs re-fingerprinting, and an unlisted version is *skipped*, not failed — see
 [docs/VERSIONING.md](docs/VERSIONING.md) and [docs/FINGERPRINTS.md](docs/FINGERPRINTS.md).
@@ -47,7 +43,7 @@ Windows, one command (uses an already-built or downloaded bundle):
 ```powershell
 pwsh -File scripts/patch-and-install.ps1 -Apk <path-to-youtube-vr.apk> `
   -AppName "YouTube VR (patched)" `
-  -PackageName app.ytvr.youtubevr
+  -PackageName app.morphe.android.youtube
 ```
 
 It runs our bundle → *Clone app* → `adb install`, checks the *effective* option
@@ -64,7 +60,7 @@ JAVA=java; M=morphe-desktop-all.jar
 "$JAVA" -jar "$M" patch --patches patches-<version>.mpp -o out.apk youtube-vr.apk
 # 2. clone, so the patched app can coexist with the store app -- `-O` BEFORE `--enable`
 "$JAVA" -jar "$M" patch --patches morphe-official-patches.mpp \
-  '-OpackageName=app.ytvr.youtubevr' \
+  '-OpackageName=app.morphe.android.youtube' \
   --exclusive --enable "Clone app" -o out-final.apk out.apk
 adb install -r out-final.apk
 ```
@@ -93,7 +89,7 @@ lookup, which works for any package name.
 
 **That Quit *is* how you exit the app.** Immersive VR apps have no in-app exit button: press the
 Meta/Quest button, and use the running app's card in the dock (or the app's tile in the library),
-where Quit is the only way out. From a PC, `adb shell am force-stop app.ytvr.youtubevr` does the
+where Quit is the only way out. From a PC, `adb shell am force-stop app.morphe.android.youtube` does the
 same thing.
 
 **Workaround, if the placeholder is annoying:** YouTube VR declares a **2D panel** entry next to its
@@ -146,9 +142,9 @@ SponsorBlock segments are also drawn **on the VR seek bar**: one coloured bar pe
 SponsorBlock's own category colours, so you can see what is coming and where a segment was skipped.
 They are drawn while the player controls are on screen and cost nothing while those are hidden.
 
-### Mod settings (in the headset)
+### Patch settings (in the headset)
 
-YouTube VR's own **Settings** list gains a **Mod settings** row at the top. Tapping it opens the
+YouTube VR's own **Settings** list gains a **Patch settings** row at the top. Tapping it opens the
 mod's own hub — the app's native fragment navigation (back returns to the list), Morphe-style: one
 entry per feature, and features add rows there as they grow. Today:
 
@@ -176,7 +172,7 @@ One thing to know before reporting a bug:
 
 - The switched-off categories do **nothing at all** — silently. On the phone those categories show a
   *skip button*, and VR has no button, so a video whose only segments are `filler` or
-  `music_offtopic` looks like SponsorBlock is broken until you switch that category on in Mod settings.
+  `music_offtopic` looks like SponsorBlock is broken until you switch that category on in Patch settings.
 
 ## 🩹 Patches list
 

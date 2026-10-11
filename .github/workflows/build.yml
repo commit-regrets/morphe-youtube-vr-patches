@@ -1,0 +1,84 @@
+name: Build
+
+# One build per push to `develop`, and none at all for pushes that cannot affect the bundle: the paths
+# filter below means a docs or notes commit burns no run. Superseded runs are cancelled, so pushing
+# twice in a minute costs one build rather than two.
+#
+# Deliberately not triggered by pushes to `main` -- nothing builds there unless we ask. Main is covered
+# by release.yml, which builds the bundle when a release is dispatched. A pull request into main needs
+# no separate build: its head commit is the one this workflow already built on develop, and that check
+# shows up on the pull request.
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'patches/**'
+      - 'extensions/**'
+      - 'buildSrc/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the bundle
+    runs-on: ubuntu-latest
+    # Reading the Morphe registry also needs the automatic GITHUB_TOKEN to be granted the package
+    # scope; without it the token is present but still not allowed to read packages.
+    permissions:
+      contents: read
+      packages: read
+    # The Morphe registry (app.morphe.patches) lives on GitHub Packages, which refuses anonymous reads
+    # even for public packages. Without these the build dies in settings.gradle.kts with "Plugin
+    # [id: 'app.morphe.patches'] was not found". release.yml passes the same token, which is why
+    # releases build while a workflow without it cannot.
+    env:
+      GITHUB_ACTOR: ${{ github.actor }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v6.0.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # The same two jars the release needs: android.jar for javac, R8 for d8. Neither exists on the
+      # runner, and without them the extension cannot be compiled into the bundle
+      # (see patches/build.gradle.kts).
+      - name: Provide the Android platform jar and R8
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools"
+          curl -fsSL -o "$tools/platform.zip" \
+            https://dl.google.com/android/repository/platform-34-ext7_r03.zip
+          unzip -q -o "$tools/platform.zip" -d "$tools"
+          echo "ANDROID_JAR=$(find "$tools" -name android.jar | head -n1)" >> "$GITHUB_ENV"
+          curl -fsSL -o "$tools/r8.jar" \
+            https://maven.google.com/com/android/tools/r8/9.5.23/r8-9.5.23.jar
+          echo "R8_JAR=$tools/r8.jar" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: ./gradlew buildAndroid --no-daemon
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: patches-bundle
+          path: patches/build/libs/patches-!(*sources*|*javadoc*).mpp
+          retention-days: 7
+          if-no-files-found: error

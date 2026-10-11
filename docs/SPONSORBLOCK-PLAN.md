@@ -554,7 +554,7 @@ Still deliberately different from the phone patch, and worth knowing before repo
   now takes `-ExtraPatches SponsorBlock` (without it the script cannot produce a SponsorBlock build
   at all).
 
-## Addendum 3: next work — a "Mod settings" screen, and seek bar markers
+## Addendum 3: next work — a "Patch settings" screen, and seek bar markers
 
 Requested after the play-test: an in-headset settings screen (like the phone app's, named for this
 project rather than for Morphe) and SponsorBlock segment markers drawn on the VR seek bar.
@@ -571,10 +571,10 @@ Reconnaissance so far, so the next round does not start from nothing.
   `PreferenceFragment` can be presented the same way the app presents its own UI, and the app already
   has a hostable 2D panel entry point (`YouTubeVrPanel2Activity`, `com.oculus.intent.category.2D`).
 - Candidate entry points, least surprising first: hook the app's own settings screen and add a
-  "Mod settings" row (needs the settings fragment/`PreferenceScreen` — the three files above are the
+  "Patch settings" row (needs the settings fragment/`PreferenceScreen` — the three files above are the
   candidates), or add our own activity and declare it in the manifest (the patch already edits the
   manifest for the App name patch) and let the shell host it as a 2D panel app.
-- Naming: "Mod settings" or similar. Never Morphe's own settings name, and never a name that claims
+- Naming: "Patch settings" or similar. Never Morphe's own settings name, and never a name that claims
   to be Google's.
 
 **Seek bar markers need one more fingerprint.**
@@ -634,9 +634,9 @@ therefore: play a video that has segments, bring up the player controls, and exp
 on the seek bar plus `seekbar overlay attached` / `seekbar geometry` / `seekbar markers drawn` in
 `adb logcat -d | rg -a "SponsorBlock:"`.
 
-Still to do for this objective: the "Mod settings" screen (Addendum 3's first half).
+Still to do for this objective: the "Patch settings" screen (Addendum 3's first half).
 
-## Addendum 5: the marker bugs, and the Mod settings panel (2026-10-10, same day)
+## Addendum 5: the marker bugs, and the Patch settings panel (2026-10-10, same day)
 
 **Two bugs the round-1 marker work shipped, both found on the device.**
 
@@ -663,7 +663,7 @@ Still to do for this objective: the "Mod settings" screen (Addendum 3's first ha
    listener now, so sizing no longer depends on the timeline callback (which only runs while the
    controls are visible).
 
-**Mod settings (the first half of Addendum 3) is implemented.** Because this extension compiles
+**Patch settings (the first half of Addendum 3) is implemented.** Because this extension compiles
 against `android.jar` only, there is no `androidx.preference` and no `Activity`: the panel is built
 from plain views and added to the app's *own* settings panel, which is a normal view hierarchy
 (`fyi` inflating `R.layout.accounts_and_settings_fragment` inside a `VrCardView`). The entry row is
@@ -699,12 +699,12 @@ container's.
 | build | classes in the last dex | app classes |
 |---|---|---|
 | default patches (17) | `agtm, axe, YouTubeVrTikTokRoot_Application, PlaybackAgnosticUserPreferences, PlatypusEnablingManager, fna, gtu, mkz, muf, muk, ocn, oqb, CronetUrlRequestContext, oth, pqy, sfp, tyj` | 17 |
-| with **SponsorBlock** | the 17 above **plus** `pwe` (loadVideo/seek hooks + the three generated bridges), `pwd` (onSeeked), `ablw` (seek-source enum), `gtw` (seek-bar binder + timeline, i.e. the markers) and `fyi` (the settings panel that hosts the Mod settings row) | 21 |
+| with **SponsorBlock** | the 17 above **plus** `pwe` (loadVideo/seek hooks + the three generated bridges), `pwd` (onSeeked), `ablw` (seek-source enum), `gtw` (seek-bar binder + timeline, i.e. the markers) and `fyi` (the settings panel that hosts the Patch settings row) | 21 |
 
 So the whole feature adds exactly **five** app classes, each explainable — which is what makes a
 green run trustworthy here.
 
-**The Mod settings panel gained two things** after the first device look: a **Seek-bar markers**
+**The Patch settings panel gained two things** after the first device look: a **Seek-bar markers**
 on/off row (this port's own addition, so it gets its own switch) and human-readable category names
 ("Unpaid / self-promotion", "Non-music section", …) with the category carried on the view's tag, so
 the label can be prettier than the API identifier without losing the mapping.
@@ -752,7 +752,7 @@ falls back to the played bar's parent when it resolves to nothing.
 
 ## Addendum 8: where a view we add is actually drawn (the panel bug)
 
-Two reports from the headset — the Mod settings row "doesn't stick" and tapping it "does nothing" —
+Two reports from the headset — the Patch settings row "doesn't stick" and tapping it "does nothing" —
 turned out to be one mechanism each, both visible in the overlay's own logs:
 
 - **The click was fine.** `settings row: clicked` appears on every tap, so the VR input path
@@ -773,7 +773,7 @@ The general rule: **adding a view to the window is not enough — it has to be i
 app renders**. For this app that means a `VrCardView` (the marks: `VrCardView`, `VrViewFacade`,
 `GlRender` in `com.google.android.apps.youtube.vr.framework.view`).
 
-## Addendum 9: the Mod settings panel, and the Close bug
+## Addendum 9: the Patch settings panel, and the Close bug
 
 The first panel drew every option on one screen: fourteen buttons, no hierarchy, and — reported from
 the headset — **Close did nothing**. Both were fixed the same day:
@@ -815,7 +815,7 @@ the log is visible in the headset, so a report can be checked without `adb logca
 
 ## Addendum 11: the entry row belongs *in* the settings column
 
-The floating "Mod settings" button at the card's top-right corner was the wrong shape: it read as a
+The floating "Patch settings" button at the card's top-right corner was the wrong shape: it read as a
 stray button rather than a settings entry. The settings card's three children turned out to be
 fragment holders, and their ids name them:
 
@@ -906,7 +906,7 @@ approach entirely:
 - So the seamless entry is a `Preference`, not a view. Views we insert are always going to look like
   a layer, and they cannot scroll, because the controller's scroll goes to the app's list.
 
-The port now adds a **`PreferenceCategory("Mod settings")`** to that screen, from the method that loads
+The port now adds a **`PreferenceCategory("Patch settings")`** to that screen, from the method that loads
 the prefs XML (found structurally: a no-argument void method referencing `settings_prefs` or
 `panel2_settings_prefs`; in 1.88.10 that is `fzb.aD()` and `fqa.aD()`, and both are patched). The
 category holds real rows: two `SwitchPreference`s (SponsorBlock, Seek-bar markers), one `Preference`
@@ -924,7 +924,7 @@ the tree only until the native rows are confirmed in the headset, at which point
 
 ## Addendum 14: the settings screen is the app's own preferences XML (final design)
 
-Addenda 10-13 record three attempts at one requirement ("a Mod settings screen inside the app"). The
+Addenda 10-13 record three attempts at one requirement ("a Patch settings screen inside the app"). The
 first two are gone; this is what shipped and why.
 
 | attempt | what it was | why it failed |
@@ -936,7 +936,7 @@ first two are gone; this is what shipped and why.
 
 What the shipped version is:
 
-- A `PreferenceCategory` titled "Mod settings" (using the app's own
+- A `PreferenceCategory` titled "Patch settings" (using the app's own
   `@layout/settings_pref_title_with_divider`), then plain `androidx.preference.SwitchPreference` rows:
   SponsorBlock, Seek-bar markers, "Skip each segment only once", a "Categories" header, and one switch
   per category. `SwitchPreference` is the superclass of the app's own
@@ -993,7 +993,7 @@ app's own code:
 
 The settings screen was the last piece without a human verdict, and it has one:
 
-> Settings, top of the list: **a "Mod settings" header with switches under it** (SponsorBlock, Seek-bar
+> Settings, top of the list: **a "Patch settings" header with switches under it** (SponsorBlock, Seek-bar
 > markers, Categories, and the category switches).
 
 Together with the rest of the evidence, every part of this feature is now verified on the device:
@@ -1038,7 +1038,7 @@ What the patch does (SettingsXml.kt rewrites + three structural bytecode edits p
 
 | edit | what it is | why it is safe |
 |---|---|---|
-| the entry row | a plain `<Preference android:key="ytvr_mod_settings" android:title="Mod settings"/>` at the top of `settings_prefs.xml` and `panel2_settings_prefs.xml` (the flat rows of Addendum 14 are removed) | a plain `Preference` with no `android:fragment`/intent is inert on its own; the click handler is what routes it |
+| the entry row | a plain `<Preference android:key="ytvr_mod_settings" android:title="Patch settings"/>` at the top of `settings_prefs.xml` and `panel2_settings_prefs.xml` (the flat rows of Addendum 14 are removed) | a plain `Preference` with no `android:fragment`/intent is inert on its own; the click handler is what routes it |
 | the click handler's key | the `const-string "developer_settings"` comparison in the `(Preference)Z` click handler is replaced with `"ytvr_mod_settings"` — mined via `getAllClassesWithString`, matched by shape, **validated** by requiring the `const-class` that follows to belong to a class carrying the `"Developer Settings"` title literal | the app keeps removing its own dead row (that lookup still says `developer_settings` and `PreferenceGroup.ab`'s list remove is guarded); ours routes instead |
 | the sub-screen's XML | `developer_settings_prefs.xml` keeps its root element (and thus its resource id and inflation path) but its **children are replaced** with the SponsorBlock rows | no id is minted; the switches persist to the same `<package>_preferences` file (same androidx default PreferenceManager) |
 | the wiring skip | the sub-screen fragment's `()V` setup (the class's only `()V` method holding exactly one `0x7f1800xx` literal — the `xml` id window) gets `return-void` inserted right after its `o(R.xml...)` call; the rest becomes dead code | the skipped wiring dereferences app-only rows (`experiment_ids`, `keyboard_settings`, `oculus_mobile_feature_2`, ...) **without null checks** and would NPE on the slimmed XML; our plain switches need none of it |
@@ -1066,14 +1066,14 @@ Two near-misses worth remembering:
   this androidx build predates `setPreferencesFromResource`, so a nested `<PreferenceScreen>` can
   never be displayed by arguments alone.
 
-## Addendum 18: the Morphe-style hub — Mod settings becomes a two-level screen
+## Addendum 18: the Morphe-style hub — Patch settings becomes a two-level screen
 
-Addendum 17's single-level screen (tap Mod settings -> everything flat, titled "SponsorBlock") was
+Addendum 17's single-level screen (tap Patch settings -> everything flat, titled "SponsorBlock") was
 replaced within the hour: the user compared it with Morphe's phone settings and wanted the same
 shape -- a hub of feature entries, each opening its own screen:
 
 ```
-Settings -> "Mod settings" (row) -> hub ("Mod settings")
+Settings -> "Patch settings" (row) -> hub ("Patch settings")
                                       └─ "SponsorBlock" (entry) -> SponsorBlock settings
 ```
 
@@ -1105,7 +1105,7 @@ Verified statically on the built APK: `fyp.aD`/`fyp.W` branch exactly on the arg
 `fyp.aC` routes `ytvr_mod_sb_screen` -> `aH(fyp, {ytvr_screen: sb})` and falls back to
 `Lcfq;->aC`, `fzf.aH` reads the class through `YtvrSbScreenClass`, and four compiled XMLs carry the
 keys (`res/4I.xml`, `res/4l.xml` main lists; `res/B0.xml` hub; `res/DZ.xml` SponsorBlock screen).
-The app installs, launches, and the crash buffer stays empty. **Device verdict, round one: crash.** Tapping Mod settings killed the app with
+The app installs, launches, and the crash buffer stays empty. **Device verdict, round one: crash.** Tapping Patch settings killed the app with
 `java.lang.VerifyError: Verifier rejected class fyp: void fyp.W(android.os.Bundle) failed to
 verify: instance field access on object that has non-reference type Conflict` -- and the crash
 itself is the best possible evidence: it names the method, the opcode offset and the conflict, and
@@ -1119,7 +1119,7 @@ reads anything but `this`. Lesson recorded: never assume free registers in a rew
 size the method, don't inherit its count.
 
 **Device verdict: WORKS.** The user confirmed the full chain on the headset -- Settings ->
-Mod settings -> the hub -> SponsorBlock -> the settings screen, switches persisted -- after the
+Patch settings -> the hub -> SponsorBlock -> the settings screen, switches persisted -- after the
 register fix above.
 
 **The "two back arrows" report, closed (uiautomator on device):** with settings open, the app's
