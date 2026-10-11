@@ -124,6 +124,8 @@ from the device.
 | the row's text column is a **`RelativeLayout`** (title, then summary with `layout_below="@android:id/title"`) | `LinearLayout.LayoutParams` are ignored and the view lands on top of the summary |
 | the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
+| every injected block in Application.onCreate is inserted at index 0, so the **last** insertion runs **first** | ordering is inverted: the verbose-log gate must be the last edit this patch makes, and a dump emitted before the gate opens must be re-emitted once it does (storeReady/dumpLogged in SponsorBlockSettings) |
+| a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension read `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. **Fixed the same day**: `SponsorBlockSettings.modPreferences` now reads and writes `youtube.xml` too, so the widgets own every row again; `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, so the gate follows the tap without waiting for the widget's apply |
 
 ## SponsorBlock notes
 
@@ -139,6 +141,42 @@ from the device.
   outro/music_offtopic = `seekbar-only`; preview/hook/filler = `ignore`), and `migrateOldDefaults()`
   moves rows still holding this port's older defaults so the change is actually seen.
 
+## Logging
+
+The extension prints nothing unless its one gate is open. `VerboseLog` owns that gate and everything
+above hangs off it.
+
+* **The row, and who writes it.** `Verbose logging`, key `ytvr_mod_verbose_logging`, a
+  `SwitchPreference` on the "Patch settings" hub, off by default (in the extension and in the row's
+  own `android:defaultValue`). The extension reads and writes `youtube.xml` -- the file the screens'
+  widgets persist to, see the trap above -- so the widget's own write reaches the gate, and
+  `CategoryRows`' own write (`VerboseLog.setEnabled`) makes the gate follow the tap immediately
+  rather than after the widget's async apply. The row renders the gate's *effective* state, so a
+  development build shows it ON, and the stored value is sticky across `adb install -r`.
+* **`-Diagnostics` also opens it.** The `Verbose diagnostics (development only)` option selects which
+  hooks are installed *and* the gate's initial default, so a development build logs from its first
+  line with no tap, while a build that never asks for the diagnostics (CI, a release, an end user
+  applying the bundle) is silent. A stored choice outranks the option in both directions.
+* **One gate.** `VerboseLog.log(tag, message)` is the only place in `extensions/src` that prints;
+  every class's `log(String)` is a one-line delegation to it, and `android.util.Log` is used nowhere
+  in the extension. A closed gate reads one volatile field and returns before the message is
+  formatted. The one deliberate exception is `VerboseLog.logGateToggle(value)`, the ungated echo of
+  the verbose row's own tap: gating it swallows it (a tap ON logs while the gate is still shut; a
+  tap OFF loses the race against the preference listener closing the gate from the disk-write
+  thread), and the echo is the one line that proves a tap worked.
+* **Testing the silent default** on a device that has had the row on needs
+  `adb shell pm clear app.morphe.android.youtube` (the sticky value survives reinstall; this wipes
+  SponsorBlock settings too) or a toggle-off.
+* **A development build lists its preference files** (`VerboseLog.logPreferenceFiles`, only when the
+  gate is open): the *names* of everything in `shared_prefs/`. That line exists because a switch on
+  these screens can show a new state while the file this extension reads never receives it, and the
+  only way to tell "never written" from "written somewhere else" is to look.
+* **And names the file that holds the mod's keys** (`VerboseLog.logYtvrKeyLocations`, same gate):
+  one line per preference file containing keys prefixed `ytvr_mod`, key *names* only. Since the
+  extension reads `youtube.xml` itself this is a cross-check rather than a hunt, but it is what
+  found the original split (2026-10-11: every `ytvr_mod*` key sat in `youtube.xml` while the
+  extension read a file that did not exist).
+
 ## Project state and open problems
 
 This file is about *how to work here*, not about what the project currently does. The state of the
@@ -148,8 +186,13 @@ still missing -- is in **`docs/SPONSORBLOCK-PLAN.md`**. Measured
 anchors and the anchors that *failed* are in `docs/FINGERPRINTS.md`.
 
 One operational rule belongs here, because ignoring it costs an outage: the 8K path depends on a
-response YouTube can withhold at any time, so the fetch fails open (playback keeps working without 8K)
-and the identity-matrix probe stays gated behind `-Diagnostics`. Do not re-hammer that endpoint.
+response YouTube can withhold at any time, so the fetch fails open (playback keeps working without 8K).
+Two different switches are easy to conflate here. `-Diagnostics` is the cheap one and is self-contained:
+the innertube route log, the media-request log and **one** fixed-video probe fetch per launch
+(`SpoofStreams.probe()`). The ~14-request identity **matrix** is its own option, `-IdentityProbe`
+(default off, and the install script refuses it without `-Diagnostics`, whose route log its output
+needs) -- that is unauthenticated traffic of the kind that gets an IP's innertube requests refused, so
+it stays off in every default build and must not be re-hammered.
 
 ## Releases and CI
 
@@ -170,6 +213,14 @@ gate before merging, and it shows on the pull request because the PR's head comm
 
 **Settings the workflows need:** Settings → Actions → General → Workflow permissions → *Allow GitHub
 Actions to create and approve pull requests*. Without it `open_pull_request.yml` fails with a 403.
+
+**The build needs no PAT.** `GITHUB_TOKEN` plus `permissions: packages: read` is enough to read the
+Morphe registry from GitHub Packages. The failures that looked like an auth problem were a YAML error
+(`steps:` sharing a line with an env value), which makes the workflow unparseable and fails the run in
+0s with no log at all -- a zero-second run without a log means a broken workflow file, not a credential.
+
+**Artifact globs.** `actions/upload-artifact` uses `@actions/glob`, which understands only a leading `!`
+negation, not `!(a|b)` extglobs. Use a `path: |` list with `!...` exclusion lines.
 
 **Attest.** `release.yml`'s `Attest` step fails on a private repository ("feature not available for
 user-owned private repositories") — cosmetic, and it should pass once the repository is public.

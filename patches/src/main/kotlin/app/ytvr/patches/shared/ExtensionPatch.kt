@@ -426,7 +426,7 @@ val extensionPatch = bytecodePatch(
     // stitch a pre-roll into them), clears the client-side ad slots in the app's
     // own player response, and normalises the media request so it plays.
     // Turning it off gives an unmodified (ad-bearing) player, i.e. only useful
-    // for A/B comparisons -- see SABR-SPOOF-PLAN.md.
+    // for A/B comparisons -- see docs/INTERNALS.md.
     val enableStreamSpoof by booleanOption(
         key = "enableStreamSpoof",
         default = true,
@@ -437,6 +437,17 @@ val extensionPatch = bytecodePatch(
     // route, every HTTP request, every media request and every ad-path entry
     // point, and runs a few extra probe fetches. Off by default so a normal
     // build stays quiet and fast.
+    //
+    // It selects *which hooks are installed* and is also the build's own word for "I am
+    // developing": with it on, the extension's log gate starts open (`VerboseLog.setDefaultEnabled`,
+    // injected below), so the diagnostics are readable from the app's first line without tapping
+    // the "Verbose logging" row first. A build that never asks for the diagnostics -- CI, a
+    // release, an end user applying the bundle with no options -- logs nothing at all, and that is
+    // where the released artefact comes from: this option is chosen when a bundle is *applied*,
+    // not when it is built, so the published bundle stays silent for whoever applies it next.
+    //
+    // The row still wins over the option: its stored value survives `adb install -r`, so a viewer
+    // who turned logging off stays quiet even in a diagnostics build.
     val enableDiagnostics by booleanOption(
         key = "enableDiagnostics",
         default = false,
@@ -505,6 +516,38 @@ val extensionPatch = bytecodePatch(
     })
 
     execute {
+        // The log gate, at the earliest point there is. `init` reads the "Verbose logging" row's
+        // stored value (the SponsorBlock patch adds the row to the hub), and with the diagnostics
+        // option on the gate's *default* is "on" as well, so a development build logs from its
+        // first line without anyone tapping the row. Without this call the gate would only be
+        // initialised when the SponsorBlock patch is applied, and a build of the Extension patch
+        // alone could not turn its own diagnostics on.
+        //
+        // It is injected **last** of this patch's Application.onCreate edits, and that is not
+        // cosmetic: every one of these blocks is inserted at index 0, so the last insertion ends up
+        // first in the method and the gate opens before the other start-up lines (the task label,
+        // the 8K note). The SponsorBlock patch's block goes in after this patch has run (measured
+        // in the installed build: Extension is applied first, so its instructions end up behind
+        // that block) and therefore executes *before* the gate here -- which is why
+        // `setDefaultEnabled` re-reads the preference file instead of only remembering the flag,
+        // and why the settings store re-emits its dump when the gate opens. Nothing depends on
+        // that order: `VerboseLog` is idempotent and re-reads, and the dump is printed once,
+        // whichever of the two calls opens the gate.
+        fun injectLogGate() = applicationOnCreateFingerprint.method.addInstructions(
+            0,
+            if (enableDiagnostics == true) {
+                """
+                    const/4 v0, 0x1
+                    invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->setDefaultEnabled(Z)V
+                    invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
+                """.trimIndent()
+            } else {
+                """
+                    invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
+                """.trimIndent()
+            }
+        )
+
         // Give the app a task label. Horizon OS's library names a *running* app from the store's
         // record for its package; a re-signed, renamed build has none, and the fallback is the
         // task label, which this app leaves null -- so the library shows its "App name
@@ -562,6 +605,10 @@ val extensionPatch = bytecodePatch(
         // while a spoofed stream is in play -- SpoofStreams decides that per fetch and the
         // runtime hooks consult it -- so with the spoof off there is nothing to install.
         if (enableStreamSpoof != true && enableNativeFormats != true) {
+            // Nothing else will be injected at index 0, so the gate can go in now: it stays last
+            // of this patch's Application.onCreate edits, which is what puts it first in the
+            // method (see injectLogGate).
+            injectLogGate()
             return@execute
         }
 
@@ -573,6 +620,10 @@ val extensionPatch = bytecodePatch(
                 "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->probe()V"
             )
         }
+
+        // The last Application.onCreate edit of this patch -- see injectLogGate for why the order
+        // of these insertions is load-bearing. Everything injected above runs after the gate opens.
+        injectLogGate()
 
         // Phase 3d: keep the media data source from rewriting the URL into a UMP envelope
         // request. `<this>.c = <underlying source> instanceof ayd` (cronet) selects the

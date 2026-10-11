@@ -652,7 +652,8 @@ public final class SponsorSkipController {
         return true;
     }
 
+    /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
     private static void log(String message) {
-        System.out.println(TAG + ": " + message);
+        VerboseLog.log(TAG, message);
     }
 }

@@ -37,7 +37,7 @@ Patch settings          <- the only thing on the main settings list
 
 Nothing about the *behaviour* needs to change: the switches keep the same `android:key`s
 (`ytvr_mod_sb_enabled`, `ytvr_mod_sb_markers`, `ytvr_mod_sb_skip_once`, `ytvr_mod_cat_<category>`) and
-the extension keeps reading them from `<package>_preferences`. This is a UI-structure change plus
+the extension keeps reading them from `youtube.xml` (the screens' preference file; measured 2026-10-11). This is a UI-structure change plus
 whatever the navigation needs.
 
 ---
@@ -177,7 +177,7 @@ $zip.Dispose()
 adb logcat -d | rg -a "SponsorBlock: patch settings" | Select-Object -Last 2
 ```
 
-`patch settings (…_preferences): sponsorblock=… markers=… skipOnce=…, N categor(y/ies) on` means the
+`patch settings (youtube.xml): sponsorblock=… markers=… skipOnce=…, N categor(y/ies) on` means the
 app stored a toggle and the extension read it. `the screen's switches are not there yet` means no
 toggle has been written yet (or the file differs — then `logModSettings()` in
 `SponsorBlockSettings.java` is where to widen the search).

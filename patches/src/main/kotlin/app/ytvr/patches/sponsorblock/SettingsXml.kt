@@ -197,17 +197,21 @@ private fun addModSettingsEntry(xml: File) = editXml(xml) { root ->
 private const val MAIN_ROW_TITLE = "Patch settings"
 
 /**
- * Replaces the whole content of the hub's preferences XML with the feature entry rows. The root
- * element (and with it the resource id and the inflation path) stays the app's own.
+ * Replaces the whole content of the hub's preferences XML with the feature entry rows plus the
+ * one setting that is not a feature. The root element (and with it the resource id and the
+ * inflation path) stays the app's own.
+ *
+ * Idempotence is by *every* row's key: a decode reused from an earlier revision of this patch has
+ * the older row set, and requiring the whole set means such a tree is cleared and rewritten rather
+ * than being left one row short.
  */
 private fun fillHubScreen(xml: File) = editXml(xml) { root ->
-    if (root.getElementsByTagName("*").let { nodes ->
-            (0 until nodes.length).any { index ->
-                val element = nodes.item(index)
-                element is Element && element.getAttribute("android:key") == HUB_ENTRY_KEY
-            }
+    val present = root.getElementsByTagName("*").let { nodes ->
+        (0 until nodes.length).mapNotNull { index ->
+            (nodes.item(index) as? Element)?.getAttribute("android:key")
         }
-    ) {
+    }.toSet()
+    if (HUB_ROW_KEYS.all { it in present }) {
         return@editXml
     }
     while (root.firstChild != null) {
@@ -220,16 +224,44 @@ private fun fillHubScreen(xml: File) = editXml(xml) { root ->
     }
 }
 
-/** The hub's SponsorBlock entry, whose key doubles as the hub's idempotence marker. */
+/** The hub's SponsorBlock entry. */
 private const val HUB_ENTRY_KEY = "ytvr_mod_sb_screen"
 
+/**
+ * The hub's log gate: the row the extension's {@code VerboseLog} reads, and the thing that makes a
+ * *released* build quiet while still letting a developer turn the diagnostics back on without a
+ * rebuild. `ytvr_mod_*` like every other row this port adds, and a Boolean-writing
+ * `SwitchPreference`, so it persists to the same preference file every other row uses.
+ */
+private const val VERBOSE_LOGGING_KEY = "ytvr_mod_verbose_logging"
+private const val VERBOSE_LOGGING_TITLE = "Verbose logging"
+
+/**
+ * The hub's rows: the feature entries, then the diagnostic switch. The switch sits on the hub
+ * rather than inside a feature's screen because it gates the whole extension, not SponsorBlock --
+ * and it needs no click handler of its own, because a `SwitchPreference` persists itself.
+ */
 private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
     "Preference" to listOf(
         "android:key" to HUB_ENTRY_KEY,
         "android:title" to "SponsorBlock",
         "android:summary" to "Skips crowd-sourced sponsor segments automatically",
     ),
+    SWITCH to listOf(
+        "android:key" to VERBOSE_LOGGING_KEY,
+        "android:title" to VERBOSE_LOGGING_TITLE,
+        // Off in the XML as well as in the extension: a build nobody has touched logs nothing.
+        "android:defaultValue" to "false",
+        "android:summary" to "Logs this port's diagnostics to logcat, for troubleshooting",
+    ),
 )
+
+/** Every hub row's key, which is what makes the screen's edit idempotent (see [fillHubScreen]). */
+private val HUB_ROW_KEYS: Set<String> = HUB_ROWS
+    .flatMap { row -> row.second }
+    .filter { attribute -> attribute.first == "android:key" }
+    .map { attribute -> attribute.second }
+    .toSet()
 
 /**
  * Replaces the whole content of the SponsorBlock screen's preferences XML with the SponsorBlock

@@ -44,7 +44,9 @@ jobs:
     # releases build while a workflow without it cannot.
     env:
       GITHUB_ACTOR: ${{ github.actor }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    steps:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -79,6 +81,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: patches-bundle
-          path: patches/build/libs/patches-!(*sources*|*javadoc*).mpp
+          # @actions/glob supports a leading ! negation, not !(a|b) extglobs, so list the sources/javadoc
+          # jars as explicit exclusions.
+          path: |
+            patches/build/libs/*.mpp
+            !patches/build/libs/*-sources.mpp
+            !patches/build/libs/*-javadoc.mpp
           retention-days: 7
           if-no-files-found: error

@@ -2,7 +2,7 @@ name: Mirror to GitLab
 
 # Keeps the GitLab copy identical to GitHub. One-way on purpose: GitHub is the source of truth, and a
 # mirror is only useful if it cannot diverge. The deploy key below holds write access to exactly one
-# project, and the private archive (ytvr-private-notes) is deliberately outside this arrangement.
+# project, and any other repository is deliberately outside this arrangement.
 on:
   push:
     branches:
@@ -40,7 +40,7 @@ jobs:
       - name: Push branches and tags
         run: |
           set -euo pipefail
-          git remote add gitlab git@gitlab.com:commit-regrets/morphe-youtube-vr-patches.git
+          git remote add gitlab "${{ vars.GITLAB_REMOTE_URL }}"
           # Ref-for-ref rather than --mirror: remote-tracking refs become real branches, tags are
           # copied, and --prune removes a branch deleted here so the mirror cannot rot.
           git push --prune gitlab \

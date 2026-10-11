@@ -66,6 +66,10 @@ public final class SponsorBlockSettings {
     /** The seek-bar markers, which are this port's own addition, not the phone patch's. */
     private static volatile boolean markersEnabled = true;
     private static volatile Context context;
+    /** True once {@link #initContext} has finished its migrations: the dump reports their result. */
+    private static volatile boolean storeReady;
+    /** True once the start-up dump has actually been printed, so a later gate cannot repeat it. */
+    private static volatile boolean dumpLogged;
 
     private SponsorBlockSettings() {
     }
@@ -180,6 +184,33 @@ public final class SponsorBlockSettings {
     }
 
     /**
+     * Records the "Verbose logging" row's choice, in the same file and under the same key the gate
+     * reads.
+     *
+     * The row is written *here* rather than by its own `SwitchPreference`, because that is the one
+     * path the gate is guaranteed to see: measured on the device, a plain androidx switch on these
+     * screens flips to ON while `ytvr_mod_verbose_logging` never appears in this file at all -- the
+     * extension printed `patch settings (...): the screen's switches are not there yet` on a build
+     * whose row read ON, across an update install that preserved app data. {@link CategoryRows} owns
+     * the row and calls this on a tap, which is also what the behaviour pickers already do.
+     */
+    static void setVerboseLogging(boolean on) {
+        try {
+            SharedPreferences mod = modPreferences();
+            if (mod == null) {
+                log("verbose logging not saved: no app context");
+                return;
+            }
+            mod.edit().putBoolean(VerboseLog.KEY_VERBOSE_LOGGING, on).apply();
+            // No log here: the tap's echo is VerboseLog.logGateToggle, printed ungated by the row
+            // before it calls this. A gated log at this point doubles the ON echo (the write's own
+            // preference listener has already opened the gate) and is swallowed on OFF.
+        } catch (Throwable t) {
+            log("verbose logging write failed: " + t);
+        }
+    }
+
+    /**
      * The baked defaults moved from this port's first set (five categories auto-skipping) to
      * upstream's map, where only sponsor skips by itself.
      *
@@ -288,16 +319,26 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * androidx's default preference file. The app never calls `setSharedPreferencesName`, so this is
-     * where every switch on its settings screen is persisted — including the rows this patch adds.
+     * The file the settings screens persist to. Measured 2026-10-11: the screens' fragment sets
+     * its preference storage name to "youtube" before inflating (fyp's `g("youtube")`), so every
+     * widget row this patch adds commits there — the same file this extension must read and write.
+     * Earlier builds read `<package>_preferences`, a file nothing ever wrote.
      */
     private static SharedPreferences modPreferences() {
-        Context appContext = context;
+        return modPreferences(context);
+    }
+
+    /**
+     * The same file for a caller that has a context of its own: {@link VerboseLog} reads the log
+     * row at Application.onCreate, where the order against {@link #initContext} is the patch's
+     * business rather than this class's. The file's name stays in one place, which is what keeps
+     * the two readers on the same file.
+     */
+    static SharedPreferences modPreferences(Context appContext) {
         if (appContext == null) {
             return null;
         }
-        return appContext.getSharedPreferences(appContext.getPackageName() + "_preferences",
-            Context.MODE_PRIVATE);
+        return appContext.getSharedPreferences("youtube", Context.MODE_PRIVATE);
     }
 
     /**
@@ -308,12 +349,39 @@ public final class SponsorBlockSettings {
     public static void initContext(Context appContext) {
         try {
             context = appContext == null ? null : appContext.getApplicationContext();
+            // Before the first log line below: the gate has to know the row's value, and this call
+            // cannot assume the Extension patch's own init ran first (both are injected into the
+            // same Application.onCreate). VerboseLog.init is idempotent, so this costs nothing when
+            // it did.
+            VerboseLog.init(context);
             migrateLegacySwitches();
             migrateOldDefaults();
-            logModSettings();
+            // Only now is the store ready for the dump: it reports the post-migration state, so the
+            // dump must not be emitted before this point even by a gate that opened first (see
+            // onLogGateOpened).
+            storeReady = true;
+            onLogGateOpened();
         } catch (Throwable t) {
             log("settings store failed: " + t);
         }
+    }
+
+    /**
+     * Prints the start-up dump unless it has already been printed, and only with the gate open.
+     *
+     * Called at the end of {@link #initContext} and from {@link VerboseLog} every time its gate
+     * opens, because the two injected calls at Application.onCreate come from two different patches
+     * and either may run first. In 1.88.10 the order inside the method is the SponsorBlock block
+     * (configure, initContext) and *then* the Extension block (the diagnostics default, init), so a
+     * development build would otherwise build the dump while the gate was still closed and never
+     * print the one line that says what the settings screen is set to.
+     */
+    static void onLogGateOpened() {
+        if (dumpLogged || !storeReady || !VerboseLog.enabled()) {
+            return;
+        }
+        dumpLogged = true;
+        logModSettings();
     }
 
     /**
@@ -363,17 +431,21 @@ public final class SponsorBlockSettings {
                 log("patch settings: no app context");
                 return;
             }
-            StringBuilder text = new StringBuilder("patch settings (")
-                .append(context.getPackageName()).append("_preferences): ");
+            StringBuilder text = new StringBuilder("patch settings (youtube.xml): ");
             Boolean on = modBoolean(KEY_MOD_ENABLED);
             Boolean markers = modBoolean(KEY_MOD_MARKERS);
             Boolean once = modBoolean(KEY_SKIP_ONCE);
-            if (on == null && markers == null) {
+            // The log gate's own row, reported like the rest: this line is the only one that says
+            // what the screen is set to, and it is itself gated, so it has to say whether the gate
+            // it is behind is open.
+            Boolean verbose = modBoolean(VerboseLog.KEY_VERBOSE_LOGGING);
+            if (on == null && markers == null && verbose == null) {
                 text.append("the screen's switches are not there yet");
             } else {
                 text.append("sponsorblock=").append(on == null ? "(default)" : on);
                 text.append(" markers=").append(markers == null ? "(default)" : markers);
                 text.append(" skipOnce=").append(once == null ? "(default)" : once);
+                text.append(" verboseLogging=").append(verbose == null ? "(default)" : verbose);
             }
             int enabled_categories = 0;
             StringBuilder effective = new StringBuilder();
@@ -470,7 +542,8 @@ public final class SponsorBlockSettings {
         return "manual-skip".equals(value) ? "seekbar-only" : value;
     }
 
+    /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
     private static void log(String message) {
-        System.out.println(TAG + ": " + message);
+        VerboseLog.log(TAG, message);
     }
 }

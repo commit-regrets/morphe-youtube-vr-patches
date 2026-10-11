@@ -118,7 +118,8 @@ public final class YtvrSponsorBlockHost implements SponsorBlockApi {
         }
     }
 
+    /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
     private static void log(String message) {
-        System.out.println(TAG + ": " + message);
+        VerboseLog.log(TAG, message);
     }
 }
