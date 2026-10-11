@@ -4,7 +4,7 @@ import android.net.Uri;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -14,28 +14,29 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Makes the spoofed adaptive media URL fetchable, and reports what the app was doing to it.
  *
- * Two independent things put the app's media request into a shape googlevideo refuses with
- * HTTP 400 for a plain adaptive stream (the QOE ping then reports it as `staleconfig`, which is
- * the app's own word -- `zk.au()` classifies a bare 400/403/404/410/416 as `staleconfig` when
- * the app believes its stream config is stale; `axp` hardcodes `er.2004` for every HTTP error,
- * so neither name comes from the server):
+ * <p>Two independent things put the app's media request into a shape googlevideo refuses with HTTP
+ * 400 for a plain adaptive stream (the QOE ping then reports it as `staleconfig`, which is the
+ * app's own word -- `zk.au()` classifies a bare 400/403/404/410/416 as `staleconfig` when the app
+ * believes its stream config is stale; `axp` hardcodes `er.2004` for every HTTP error, so neither
+ * name comes from the server):
  *
- * 1. `pqy`'s constructor sets `this.c = <underlying source> instanceof ayd` (cronet), and
- *    `pqy.b(axf)` uses that flag to rewrite every `/videoplayback` fetch into a **UMP envelope
- *    request** (`?ump=1&range=<off>-<end>`, HTTP range header dropped). The UMP envelope is the
- *    SABR protocol; there is no SABR config behind a VISIONOS URL. The extension patch clears
- *    the flag, so the URL is used exactly as minted.
+ * <p>1. `pqy`'s constructor sets `this.c = <underlying source> instanceof ayd` (cronet), and
+ * `pqy.b(axf)` uses that flag to rewrite every `/videoplayback` fetch into a **UMP envelope
+ * request** (`?ump=1&range=<off>-<end>`, HTTP range header dropped). The UMP envelope is the SABR
+ * protocol; there is no SABR config behind a VISIONOS URL. The extension patch clears the flag, so
+ * the URL is used exactly as minted.
  *
- * 2. `axu.b(axf)` reads the app's **own, un-spoofed** `mediaCommonConfig.mediaUstreamerRequestConfig`
- *    and, when its `c` field is set, converts the request to a **POST carrying a serialized
- *    ClientAbrState protobuf body** ("AbrStateDataSpec"). Upstream neutralises this with
- *    `removeVideoPlaybackPostBody`. Here the conversion is undone in the DataSpec builder
- *    (`axe`), whose fields are mutable, right before it builds the immutable `axf`.
+ * <p>2. `axu.b(axf)` reads the app's **own, un-spoofed**
+ * `mediaCommonConfig.mediaUstreamerRequestConfig` and, when its `c` field is set, converts the
+ * request to a **POST carrying a serialized ClientAbrState protobuf body** ("AbrStateDataSpec").
+ * Upstream neutralises this with `removeVideoPlaybackPostBody`. Here the conversion is undone in
+ * the DataSpec builder (`axe`), whose fields are mutable, right before it builds the immutable
+ * `axf`.
  *
- * Hooked at instruction 0 of `axe.a()`, the DataSpec build, this sees the *final* URL, method
- * and body for every media request and normalises POST+body back to a plain GET. The fetch
- * matrix below is the on-device evidence: it calls the same URL as GET and as POST with and
- * without the UMP parameters and reports each status.
+ * <p>Hooked at instruction 0 of `axe.a()`, the DataSpec build, this sees the *final* URL, method
+ * and body for every media request and normalises POST+body back to a plain GET. The fetch matrix
+ * below is the on-device evidence: it calls the same URL as GET and as POST with and without the
+ * UMP parameters and reports each status.
  */
 public final class PotUrls {
 
@@ -57,18 +58,18 @@ public final class PotUrls {
         "googletagservices.com",
         "2mdn.net",
     };
+
     private static final AtomicBoolean FAILURE_LOGGED = new AtomicBoolean();
     private static final Map<String, Field> FIELDS = new HashMap<String, Field>();
 
-    private PotUrls() {
-    }
+    private PotUrls() {}
 
     /**
      * Hooked at instruction 0 of `axe.a()`; never throws into the app.
      *
-     * This is the shipping path: it only normalises the request. The logging and the probe
-     * fetches live in {@link #onBuildVerbose}, which the patch installs only when its
-     * diagnostics option is on.
+     * <p>This is the shipping path: it only normalises the request. The logging and the probe
+     * fetches live in {@link #onBuildVerbose}, which the patch installs only when its diagnostics
+     * option is on.
      */
     public static void onBuild(Object builder) {
         normalise(builder);
@@ -90,22 +91,38 @@ public final class PotUrls {
                 // from the spoof) and `id` says which video is being fetched.
                 int seq = SEQUENCE.incrementAndGet();
                 if (seq <= 200) {
-                    log("media #" + seq + " " + uri.getHost()
-                        + " id=" + uri.getQueryParameter("id")
-                        + " itag=" + uri.getQueryParameter("itag")
-                        + " c=" + uri.getQueryParameter("c")
-                        + " source=" + uri.getQueryParameter("source")
-                        + " xtags=" + uri.getQueryParameter("xtags")
-                        + " sabr=" + flag(uri, "sabr")
-                        + " ump=" + flag(uri, "ump")
-                        + " daistate=" + flag(uri, "daistate")
-                        + " acpns=" + flag(uri, "acpns")
-                        + " method=" + methodName(method)
-                        + " body=" + bodyBytes);
+                    log(
+                            "media #"
+                                    + seq
+                                    + " "
+                                    + uri.getHost()
+                                    + " id="
+                                    + uri.getQueryParameter("id")
+                                    + " itag="
+                                    + uri.getQueryParameter("itag")
+                                    + " c="
+                                    + uri.getQueryParameter("c")
+                                    + " source="
+                                    + uri.getQueryParameter("source")
+                                    + " xtags="
+                                    + uri.getQueryParameter("xtags")
+                                    + " sabr="
+                                    + flag(uri, "sabr")
+                                    + " ump="
+                                    + flag(uri, "ump")
+                                    + " daistate="
+                                    + flag(uri, "daistate")
+                                    + " acpns="
+                                    + flag(uri, "acpns")
+                                    + " method="
+                                    + methodName(method)
+                                    + " body="
+                                    + bodyBytes);
                     if (SpoofStreams.injected() && (!isGet(method) || body != null)) {
-                        log("normalising to GET with no body (pqy's UMP rewrite and axu's"
-                            + " AbrStateDataSpec POST are both defeated; the same URL returns 206"
-                            + " as a plain GET)");
+                        log(
+                                "normalising to GET with no body (pqy's UMP rewrite and axu's"
+                                        + " AbrStateDataSpec POST are both defeated; the same URL returns 206"
+                                        + " as a plain GET)");
                     }
                 }
                 if (seq == 1 && MATRIX_RUN.compareAndSet(false, true)) {
@@ -121,15 +138,15 @@ public final class PotUrls {
     }
 
     /**
-     * Turns a `/videoplayback` DataSpec back into a plain GET with no body. The app's own
-     * `axu` rewrites it into a POST carrying a serialized ClientAbrState protobuf, which
-     * googlevideo refuses with HTTP 400 for a plain adaptive URL -- the bug that made every
-     * spoofed video spin forever (`rc.400` / `staleconfig`).
+     * Turns a `/videoplayback` DataSpec back into a plain GET with no body. The app's own `axu`
+     * rewrites it into a POST carrying a serialized ClientAbrState protobuf, which googlevideo
+     * refuses with HTTP 400 for a plain adaptive URL -- the bug that made every spoofed video spin
+     * forever (`rc.400` / `staleconfig`).
      *
-     * Only while a spoofed stream is in play. The AbrState POST is the *app's own* shape for
-     * its own stream -- a SABR/onesie stream is supposed to be fetched that way -- so
-     * normalising it there would break native playback. When the spoof is unavailable the app
-     * has to keep the request shape it was designed around.
+     * <p>Only while a spoofed stream is in play. The AbrState POST is the *app's own* shape for its
+     * own stream -- a SABR/onesie stream is supposed to be fetched that way -- so normalising it
+     * there would break native playback. When the spoof is unavailable the app has to keep the
+     * request shape it was designed around.
      */
     private static void normalise(Object builder) {
         try {
@@ -176,17 +193,17 @@ public final class PotUrls {
     }
 
     private static final java.util.Map<String, Builder> BUILDERS =
-        new java.util.HashMap<String, Builder>();
+            new java.util.HashMap<String, Builder>();
     private static final java.util.Set<String> UNRESOLVED_BUILDERS =
-        java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+            java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
 
     /**
      * Resolves the builder's fields by **type**, not by name.
      *
-     * The durability trap this exists for: the fingerprint that finds the builder survives an app
-     * update, but a name-based field lookup returns null on a miss, so the patch would keep applying
-     * and silently stop normalising anything -- exactly when the update it was meant to survive
-     * happened. Names are gone by design here; if the shape changes, this logs and says so.
+     * <p>The durability trap this exists for: the fingerprint that finds the builder survives an
+     * app update, but a name-based field lookup returns null on a miss, so the patch would keep
+     * applying and silently stop normalising anything -- exactly when the update it was meant to
+     * survive happened. Names are gone by design here; if the shape changes, this logs and says so.
      */
     private static Builder builder(Object target) {
         Class<?> type = target.getClass();
@@ -236,43 +253,76 @@ public final class PotUrls {
         }
 
         Builder resolved =
-            (url != null && method != null && body != null) ? new Builder(url, method, body) : null;
+                (url != null && method != null && body != null)
+                        ? new Builder(url, method, body)
+                        : null;
         if (resolved == null) {
             UNRESOLVED_BUILDERS.add(key);
-            log("could not resolve the DataSpec builder's fields by type on " + key
-                + " (url=" + (url != null) + " method=" + (method != null)
-                + " body=" + (body != null) + "): media requests are NOT being normalised");
+            log(
+                    "could not resolve the DataSpec builder's fields by type on "
+                            + key
+                            + " (url="
+                            + (url != null)
+                            + " method="
+                            + (method != null)
+                            + " body="
+                            + (body != null)
+                            + "): media requests are NOT being normalised");
         } else {
             synchronized (BUILDERS) {
                 BUILDERS.put(key, resolved);
             }
-            log("DataSpec builder fields resolved by type on " + key + ": url=" + url.getName()
-                + " method=" + method.getName() + " body=" + body.getName());
+            log(
+                    "DataSpec builder fields resolved by type on "
+                            + key
+                            + ": url="
+                            + url.getName()
+                            + " method="
+                            + method.getName()
+                            + " body="
+                            + body.getName());
         }
         return resolved;
     }
 
     /**
-     * Calls the app's own URL four ways and reports each status, so the 400 is measured rather
-     * than argued. Runs once per process, off the main thread, 1 KB per request.
+     * Calls the app's own URL four ways and reports each status, so the 400 is measured rather than
+     * argued. Runs once per process, off the main thread, 1 KB per request.
      */
     private static void fetchMatrix(final String url) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                probe("A GET, Range 0-1023", url, "GET", "bytes=0-1023", null);
-                probe("B GET +ump=1&range=0-1023", url + "&ump=1&range=0-1023", "GET",
-                    "bytes=0-1023", null);
-                probe("C POST, empty body", url, "POST", "bytes=0-1023", new byte[0]);
-                probe("D POST, 64-byte body", url, "POST", "bytes=0-1023", new byte[64]);
-            }
-        }, "ytvr-urlmatrix").start();
+        new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                probe("A GET, Range 0-1023", url, "GET", "bytes=0-1023", null);
+                                probe(
+                                        "B GET +ump=1&range=0-1023",
+                                        url + "&ump=1&range=0-1023",
+                                        "GET",
+                                        "bytes=0-1023",
+                                        null);
+                                probe(
+                                        "C POST, empty body",
+                                        url,
+                                        "POST",
+                                        "bytes=0-1023",
+                                        new byte[0]);
+                                probe(
+                                        "D POST, 64-byte body",
+                                        url,
+                                        "POST",
+                                        "bytes=0-1023",
+                                        new byte[64]);
+                            }
+                        },
+                        "ytvr-urlmatrix")
+                .start();
     }
 
     private static void probe(String label, String url, String method, String range, byte[] body) {
         HttpURLConnection connection = null;
         try {
-            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
             connection.setRequestMethod(method);
             if (range != null) {
                 connection.setRequestProperty("Range", range);
@@ -287,9 +337,14 @@ public final class PotUrls {
                 connection.getOutputStream().write(body);
             }
             int code = connection.getResponseCode();
-            log("matrix " + label + ": http=" + code
-                + " contentRange=" + connection.getHeaderField("Content-Range")
-                + bodySnippet(connection));
+            log(
+                    "matrix "
+                            + label
+                            + ": http="
+                            + code
+                            + " contentRange="
+                            + connection.getHeaderField("Content-Range")
+                            + bodySnippet(connection));
         } catch (Throwable t) {
             log("matrix " + label + " failed: " + t);
         } finally {
@@ -314,8 +369,10 @@ public final class PotUrls {
             if (read <= 0) {
                 return "";
             }
-            String text = new String(chunk, 0, read, StandardCharsets.ISO_8859_1)
-                .replaceAll("[^\\x20-\\x7E]", " ").trim();
+            String text =
+                    new String(chunk, 0, read, StandardCharsets.ISO_8859_1)
+                            .replaceAll("[^\\x20-\\x7E]", " ")
+                            .trim();
             if (text.length() > 120) {
                 text = text.substring(0, 120);
             }
@@ -332,10 +389,10 @@ public final class PotUrls {
 
     /**
      * Hooked at instruction 0 of `oth.l()`, which builds *every* innertube request URL:
-     * `uri.buildUpon().appendEncodedPath("youtubei/v1").appendEncodedPath(oswVar.k)`, where
-     * `orh.k` is the route name ("player", "get_watch", "player/ad_break", ...). The spoof only
-     * rewrites the `/player` response, so any other player-response source the app consults can
-     * still hand it an ad-bearing stream -- this says which routes it actually uses.
+     * `uri.buildUpon().appendEncodedPath("youtubei/v1").appendEncodedPath(oswVar.k)`, where `orh.k`
+     * is the route name ("player", "get_watch", "player/ad_break", ...). The spoof only rewrites
+     * the `/player` response, so any other player-response source the app consults can still hand
+     * it an ad-bearing stream -- this says which routes it actually uses.
      */
     public static void onInnertubeRoute(Object uriBuilderOwner) {
         try {
@@ -381,10 +438,10 @@ public final class PotUrls {
     }
 
     /**
-     * Hooked in front of the skip-ad countdown (`gtu.b(int)` = the VR skip button,
-     * `fna.b(int)` = the 2D-panel one). This is the app's own ad UI ticking down the remaining
-     * ad time, so it is an unambiguous in-app signal that an ad is on screen -- unlike the QOE
-     * `ad_playback` marker, which only appears in a later ping and is absent in short sessions.
+     * Hooked in front of the skip-ad countdown (`gtu.b(int)` = the VR skip button, `fna.b(int)` =
+     * the 2D-panel one). This is the app's own ad UI ticking down the remaining ad time, so it is
+     * an unambiguous in-app signal that an ad is on screen -- unlike the QOE `ad_playback` marker,
+     * which only appears in a later ping and is absent in short sessions.
      */
     public static void onAdCountdown(int remainingMs) {
         try {
@@ -395,7 +452,12 @@ public final class PotUrls {
                 AD_PATHS.put("skipAdCountdown", Integer.valueOf(seen));
             }
             if (seen <= 8 || seen % 20 == 0) {
-                log("ad UI: skip-ad countdown " + remainingMs + " ms remaining (tick " + seen + ")");
+                log(
+                        "ad UI: skip-ad countdown "
+                                + remainingMs
+                                + " ms remaining (tick "
+                                + seen
+                                + ")");
             }
         } catch (Throwable t) {
             // never throw into the app
@@ -426,13 +488,25 @@ public final class PotUrls {
                 seen = count == null ? 1 : count + 1;
                 REQUESTS.put(key, Integer.valueOf(seen));
             }
-            boolean interesting = key.contains("videoplayback") || key.contains("initplayback")
-                || key.contains("get_watch") || key.contains("ad_break")
-                || key.contains("googlevideo") || key.contains("doubleclick")
-                || key.contains("googleads") || key.contains("adservice") || key.contains("manifest");
+            boolean interesting =
+                    key.contains("videoplayback")
+                            || key.contains("initplayback")
+                            || key.contains("get_watch")
+                            || key.contains("ad_break")
+                            || key.contains("googlevideo")
+                            || key.contains("doubleclick")
+                            || key.contains("googleads")
+                            || key.contains("adservice")
+                            || key.contains("manifest");
             if (seen <= 2 || (interesting && seen <= 5)) {
-                log("http: " + key + (interesting ? "  <-- media/ad path" : "")
-                    + " (call " + seen + ")" + (interesting ? " params=" + paramNames(url) : ""));
+                log(
+                        "http: "
+                                + key
+                                + (interesting ? "  <-- media/ad path" : "")
+                                + " (call "
+                                + seen
+                                + ")"
+                                + (interesting ? " params=" + paramNames(url) : ""));
             }
         } catch (Throwable t) {
             // never throw into the app
@@ -464,26 +538,22 @@ public final class PotUrls {
      * Rewrites ad requests to a harmless URL, in the one place every HTTP request passes through
      * (see {@link #onUrlRequest}).
      *
-     * A device trace of the ad the spoofed build still shows (2026-10-09) contains the whole
+     * <p>A device trace of the ad the spoofed build still shows (2026-10-09) contains the whole
      * client-side ad sequence and *no* ad in any stream:
      *
-     * ```
-     * www.youtube.com/pagead/adview          <- the ad creative
-     * www.youtube.com/api/stats/ads          <- ad playback stats
-     * www.youtube.com/pagead/interaction/    <- the Skip press
-     * ad.doubleclick.net/ddm/trackimp/...    <- impression pixel (dc_ref=.../video/<content id>)
-     * ade.googlesyndication.com/ddm/activity_ext/...
-     * www.youtube.com/ptracking
-     * ```
+     * <p>``` www.youtube.com/pagead/adview <- the ad creative www.youtube.com/api/stats/ads <- ad
+     * playback stats www.youtube.com/pagead/interaction/ <- the Skip press
+     * ad.doubleclick.net/ddm/trackimp/... <- impression pixel (dc_ref=.../video/<content id>)
+     * ade.googlesyndication.com/ddm/activity_ext/... www.youtube.com/ptracking ```
      *
-     * Every `/videoplayback` request in the same run belongs to the injected VISIONOS formats, the
-     * spoofed responses carry no `adPlacements`/`playerAds`, and their streams have no ad time
+     * <p>Every `/videoplayback` request in the same run belongs to the injected VISIONOS formats,
+     * the spoofed responses carry no `adPlacements`/`playerAds`, and their streams have no ad time
      * (stream duration == content duration), so the pre-roll is delivered through `pagead/adview`
      * -- the app's own client-side ad view -- not through the media stream. Blocking the creative
      * is thus the direct fix, and it is upstream's own technique (`blockGetWatchRequest` /
      * `blockInitPlaybackRequest` rewrite a URL to `google.com/gen_204` in the request builder).
      *
-     * `s.youtube.com/api/stats/qoe` is deliberately left alone: it is the diagnostic oracle.
+     * <p>`s.youtube.com/api/stats/qoe` is deliberately left alone: it is the diagnostic oracle.
      */
     public static String filterUrl(String url) {
         if (url == null) {
@@ -491,15 +561,19 @@ public final class PotUrls {
         }
         for (String marker : AD_URL_MARKERS) {
             if (url.contains(marker)) {
-                log("blocking ad request (" + marker + "): "
-                    + url.substring(0, Math.min(160, url.length())));
+                log(
+                        "blocking ad request ("
+                                + marker
+                                + "): "
+                                + url.substring(0, Math.min(160, url.length())));
                 return "https://www.google.com/gen_204";
             }
         }
         return url;
     }
 
-    private static boolean isGet(Object method) {        return method instanceof Integer && ((Integer) method).intValue() == 1;
+    private static boolean isGet(Object method) {
+        return method instanceof Integer && ((Integer) method).intValue() == 1;
     }
 
     private static String methodName(Object method) {
