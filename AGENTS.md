@@ -125,7 +125,7 @@ from the device.
 | the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
 | R8 renames androidx **members** but keeps **class names** (XML inflation needs them) | androidx types cannot be used from the extension, and reflective member names silently do nothing |
 | every injected block in Application.onCreate is inserted at index 0, so the **last** insertion runs **first** | ordering is inverted: the verbose-log gate must be the last edit this patch makes, and a dump emitted before the gate opens must be re-emitted once it does (storeReady/dumpLogged in SponsorBlockSettings) |
-| a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | measured: the verbose row read ON across a screen rebuild and an update install, while the extension printed `patch settings (…): the screen's switches are not there yet`. A row whose value the extension must read has to write it itself (`CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging`); the master/markers switches still rely on the widget and are under the same suspicion |
+| a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension reads `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, into the file the gate reads |
 
 ## SponsorBlock notes
 
@@ -166,6 +166,9 @@ above hangs off it.
   gate is open): the *names* of everything in `shared_prefs/`. That line exists because a switch on
   these screens can show a new state while our file never receives it, and the only way to tell
   "never written" from "written somewhere else" is to look.
+* **And names the file that holds the mod's keys** (`VerboseLog.logYtvrKeyLocations`, same gate):
+  one line per preference file containing keys prefixed `ytvr_mod`, key *names* only. Measured
+  2026-10-11: all of them sit in `youtube.xml` (see the trap above).
 
 ## Project state and open problems
 

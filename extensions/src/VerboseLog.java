@@ -4,6 +4,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The single gate every log line in this extension goes through.
@@ -110,6 +113,7 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
                 // state while the file this class reads never receives the key, so knowing which
                 // files exist is the difference between guessing where it went and looking.
                 logPreferenceFiles(appContext);
+                logYtvrKeyLocations(appContext);
             }
         } catch (Throwable t) {
             enabled = false;
@@ -124,6 +128,40 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
                 + (names == null || names.length == 0 ? "(none)" : String.join(", ", names)));
         } catch (Throwable t) {
             log(TAG, "preference files unreadable: " + t);
+        }
+    }
+
+    /**
+     * In a development build: which preference file holds the keys this mod reads and writes.
+     * Measured need -- the settings screens set their preference storage name to "youtube"
+     * (the screen fragment's {@code g("youtube")}), so a widget row commits to youtube.xml while
+     * this extension reads {@code <package>_preferences}. Key *names* only; values stay unknown
+     * to the log.
+     */
+    private static void logYtvrKeyLocations(Context appContext) {
+        try {
+            String[] names = new File(appContext.getDataDir(), "shared_prefs").list();
+            if (names == null) {
+                return;
+            }
+            for (String name : names) {
+                if (!name.endsWith(".xml")) {
+                    continue;
+                }
+                Map<String, ?> all = appContext
+                    .getSharedPreferences(name.substring(0, name.length() - 4), 0).getAll();
+                List<String> ours = new ArrayList<>();
+                for (String key : all.keySet()) {
+                    if (key.startsWith("ytvr_mod")) {
+                        ours.add(key);
+                    }
+                }
+                if (!ours.isEmpty()) {
+                    log(TAG, "ytvr_mod keys in " + name + ": " + String.join(", ", ours));
+                }
+            }
+        } catch (Throwable t) {
+            log(TAG, "ytvr key scan unreadable: " + t);
         }
     }
 
