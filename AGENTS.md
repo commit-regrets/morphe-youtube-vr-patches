@@ -160,6 +160,12 @@ above hangs off it.
 * **Testing the silent default** on a device that has had the row on needs
   `adb shell pm clear app.morphe.android.youtube` (the sticky value survives reinstall; this wipes
   SponsorBlock settings too) or a toggle-off.
+* **A `-Diagnostics` build logs while its row still reads off.** That path only sets the gate's
+  *default*; the row renders the *stored* preference, and nothing has stored one -- so the switch
+  shows "off" until it is first touched. One tap makes the two agree, and from then on the stored
+  choice outranks the build default permanently, in both directions. The default is deliberately not
+  written into the preferences: a later plain install would then keep logging until it was toggled
+  off, which is the one thing this gate exists to prevent.
 
 ## Project state and open problems
 
@@ -170,8 +176,13 @@ still missing -- is in **`docs/SPONSORBLOCK-PLAN.md`**. Measured
 anchors and the anchors that *failed* are in `docs/FINGERPRINTS.md`.
 
 One operational rule belongs here, because ignoring it costs an outage: the 8K path depends on a
-response YouTube can withhold at any time, so the fetch fails open (playback keeps working without 8K)
-and the identity-matrix probe stays gated behind `-Diagnostics`. Do not re-hammer that endpoint.
+response YouTube can withhold at any time, so the fetch fails open (playback keeps working without 8K).
+Two different switches are easy to conflate here. `-Diagnostics` is the cheap one and is self-contained:
+the innertube route log, the media-request log and **one** fixed-video probe fetch per launch
+(`SpoofStreams.probe()`). The ~14-request identity **matrix** is its own option, `-IdentityProbe`
+(default off, and the install script refuses it without `-Diagnostics`, whose route log its output
+needs) -- that is unauthenticated traffic of the kind that gets an IP's innertube requests refused, so
+it stays off in every default build and must not be re-hammered.
 
 ## Releases and CI
 
@@ -200,6 +211,7 @@ Morphe registry from GitHub Packages. The failures that looked like an auth prob
 
 **Artifact globs.** `actions/upload-artifact` uses `@actions/glob`, which understands only a leading `!`
 negation, not `!(a|b)` extglobs. Use a `path: |` list with `!...` exclusion lines.
+
 **Attest.** `release.yml`'s `Attest` step fails on a private repository ("feature not available for
 user-owned private repositories") — cosmetic, and it should pass once the repository is public.
 
