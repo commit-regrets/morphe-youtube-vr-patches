@@ -37,7 +37,7 @@ tasks {
     }
 }
 
-// --- Extension dex (see SABR-SPOOF-PLAN.md, Phase 1) ---------------------------
+// --- Extension dex (see docs/INTERNALS.md) -------------------------------------
 // Compiles extensions/src/*.java, dexes it with d8, and ships the dex inside the
 // patch bundle as `ytvr-extension.dex`, where the injection patch streams it into
 // the app via BytecodePatchBuilder.extendWith.
@@ -74,7 +74,7 @@ val compileExtension by tasks.registering(Exec::class) {
     doFirst {
         check(androidJar.exists()) {
             "android.jar not found at ${androidJar.path}. Download an SDK platform and " +
-                "pass -PandroidJar=<path>; see SABR-SPOOF-PLAN.md."
+                "pass -PandroidJar=<path>; see README.md (Requirements and tooling)."
         }
         // javac does not delete classes whose sources are gone, and the extension dex is built
         // from this directory -- so a deleted source kept shipping inside the bundle (a removed
@@ -103,7 +103,7 @@ val dexyExtension by tasks.registering(Exec::class) {
     doFirst {
         check(r8Jar.exists()) {
             "d8 not found at ${r8Jar.path}. Download R8 from Google Maven " +
-                "(com.android.tools:r8) and pass -Pr8Jar=<path>; see SABR-SPOOF-PLAN.md."
+                "(com.android.tools:r8) and pass -Pr8Jar=<path>; see README.md (Requirements and tooling)."
         }
         check(classFiles.files.isNotEmpty()) {
             "No extension classes found in ${extensionClassesDir.get().asFile.path}."

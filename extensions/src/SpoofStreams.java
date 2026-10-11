@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Streaming-spoof injection for YouTube VR (see SABR-SPOOF-PLAN.md, phases 2-3).
+ * Streaming-spoof injection for YouTube VR (see docs/INTERNALS.md).
  *
  * Hooked into oqb.<init>(zjp) -- the builder that turns the PlayerResponse proto
  * (zjp, field h = StreamingData, field g = VideoDetails with c = video id) into the

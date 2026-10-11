@@ -426,7 +426,7 @@ val extensionPatch = bytecodePatch(
     // stitch a pre-roll into them), clears the client-side ad slots in the app's
     // own player response, and normalises the media request so it plays.
     // Turning it off gives an unmodified (ad-bearing) player, i.e. only useful
-    // for A/B comparisons -- see SABR-SPOOF-PLAN.md.
+    // for A/B comparisons -- see docs/INTERNALS.md.
     val enableStreamSpoof by booleanOption(
         key = "enableStreamSpoof",
         default = true,
