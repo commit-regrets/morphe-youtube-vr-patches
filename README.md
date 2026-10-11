@@ -7,10 +7,6 @@ Patches for YouTube VR (Meta Quest / Horizon OS), for use with
 
 Patches for the YouTube VR app for Meta Quest (`com.google.android.apps.youtube.vr.oculus`).
 
-YouTube VR is a heavily obfuscated XR app, so most patches written for the phone app do not apply
-(Shorts, miniplayer, navigation bar, fullscreen gestures, ...). This repository keeps the ones that
-make sense on a VR headset.
-
 **Version support is pinned to 1.88.10** (`Constants.kt`). R8 reassigns every name per release, so a
 store update needs re-fingerprinting, and an unlisted version is *skipped*, not failed — see
 [docs/VERSIONING.md](docs/VERSIONING.md) and [docs/FINGERPRINTS.md](docs/FINGERPRINTS.md).
