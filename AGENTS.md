@@ -213,6 +213,19 @@ the commits since the last tag justify one (`.releaserc` also allows pre-release
 docs-only pushes) and cancels superseded runs, so a burst of pushes costs one build. That check is the
 gate before merging, and it shows on the pull request because the PR's head commit is the one it built.
 
+**Why the changelog preset is pinned to v9.** `cycjimmy/semantic-release-action@v6` does not use this
+repository's install. It runs `npm ci --only=prod` inside its own action directory and resolves
+`semantic-release` -- and therefore `conventional-changelog-writer` -- from that private tree, whose
+lockfile pins writer **8.2.0**. The *preset*, by contrast, is loaded from this repository, so its own
+import of the writer lands on the action's writer@8. Preset v10 depends on
+`@conventional-changelog/template`, whose legacy-writer guard plants a handlebars `mainTemplate` that
+writer@8 cannot compile, and the release dies with "Missing helper: conventional-changelog-conventionalcommits
+requires conventional-changelog-writer@9 or newer". That message is a planted guard, not a version check.
+Consequences worth knowing: `overrides` (and the lockfile, and `npm ci` here) can never reach the action's
+tree, so pinning the writer there is inert; the preset must be v9 while the action is used; and a v9
+release was already proven to publish (run 38156018649, failing only in the cosmetic `Attest`). Moving
+back to v10 means dropping the action for a direct `npx semantic-release`, and gating any "did it
+publish" step on a tag existing for HEAD rather than on parsing its log.
 **Release commits.** The workflow commits its version bump (`CHANGELOG.md`, `gradle.properties`,
 `patches-bundle.json`, `patches-list.json`, `README.md`) and back-merges into `develop`, so **always
 `git fetch` and rebase before pushing** and never edit those generated files by hand.
