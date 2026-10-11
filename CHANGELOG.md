@@ -1,3 +1,9 @@
+## [1.23.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.22.2...v1.23.0) (2026-10-11)
+
+### ✨ New Features
+
+* install the patched app as a clone from this bundle, on by default ([d58c5bc](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/d58c5bc01c62f3305d75755be2f66e7a0cf5f20c))
+
 ## [1.22.2](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.22.1...v1.22.2) (2026-10-11)
 
 * gate the build on Spotless formatting and detekt static analysis ([32aa53b](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/32aa53b2c476d1d5da38351cfa11371f238527d3))
