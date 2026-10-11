@@ -248,4 +248,31 @@ negation, not `!(a|b)` extglobs. Use a `path: |` list with `!...` exclusion line
 **Attest.** `release.yml`'s `Attest` step fails on a private repository ("feature not available for
 user-owned private repositories") — cosmetic, and it should pass once the repository is public.
 
+**Morphe Manager: the mechanics that are not visible from here.** None of the four below can be read
+off this repository, and each one has already looked like a bug report ("there is no clone option",
+"my stock app is gone"):
+
+* **Simple mode never draws a patch list for this app.** Simple mode applies only the patches selected
+  by default, and for YouTube VR the official bundle contributes none, so a Simple-mode run applies
+  this bundle alone. The clone step is reachable only in **Settings → Advanced → Expert mode** (off by
+  default), and there it sits in the last, *collapsed* **Universal patches** block of the *Morphe
+  Patches* (official) source's page.
+* **A universal patch can never be default-selected.** The patcher enforces it: a universal patch
+  declared default-on fails with "Universal patches must be declared with default false". That is why
+  no universal patch -- `Clone app` included -- appears in a default or Simple-mode run.
+* **A signature conflict can silently remove the already-installed app.** With Shizuku and "auto
+  uninstall" enabled, Manager uninstalls the conflicting package first rather than only warning about
+  it. That is how a stock YouTube VR disappears and a patched build ends up owning the official id,
+  which Horizon OS then treats as the store app: no sideloading warning, a warning on every reboot
+  (the user's report, not measured here), and a collision on the next store update because the build
+  is signed differently.
+* **Manager recognises a renamer by one option key.** Any patch with an option keyed exactly
+  `packageName` is treated as a package renamer, which is what earns the "Clone" badge and the
+  post-patch "will install as `<pkg>`" warning. `Clone app` defaults that option to `"Default"`, which
+  resolves to `<original>.morphe`; this project uses `app.morphe.android.youtube`.
+
+Manager filters patches before any patch executes within a pass, so a rename there cannot filter other
+patches out of that pass. The README's "Clone app must be applied last" warning belongs to our
+two-pass CLI script, not to Manager.
+
 Verify CI in the right repo: `gh run list -R commit-regrets/morphe-youtube-vr-patches`.

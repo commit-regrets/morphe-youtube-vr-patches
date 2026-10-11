@@ -71,6 +71,36 @@ second patch's option is silently dropped — the script passes options through 
 filtered by package name**, so *Clone app* must be applied last. The rest are in
 [docs/INTERNALS.md](docs/INTERNALS.md).
 
+### Installing with Morphe Manager
+
+The [add-source link](#how-to-use-these-patches) above is all Manager needs; the *clone* step is the
+part that is hidden. Manager opens in **Simple mode**, which applies only *default-selected* patches,
+and the official Morphe bundle contributes none for YouTube VR — so a Simple-mode run applies this
+bundle alone and never draws a patch list at all. That is why there is no clone option to find in it.
+
+To get one: **Settings → Advanced → Expert mode** (off by default), pick the app, then read the patch
+list. **Clone app** is in the last, **collapsed** *Universal patches* block, on the *Morphe Patches*
+(official) source's page; Manager badges it **Clone** and, once it is ticked, warns "This will install
+a clone … Will install as `<package>`". A universal patch is never part of a default run by
+construction — the patcher rejects one declared default-on ("Universal patches must be declared with
+default false").
+
+Left at its default package name (`"Default"`), the clone gets the id `<original>.morphe`
+(`com.google.android.apps.youtube.vr.oculus.morphe`). This project's builds use
+`app.morphe.android.youtube` — the id the maintainer's own device uses.
+
+**Skipping the clone costs more than it looks.** Without it Manager installs the patched build under
+the official id `com.google.android.apps.youtube.vr.oculus`, which cannot coexist with the store app:
+on a signature conflict Manager either shows a conflict dialog, or — with Shizuku and "auto uninstall"
+enabled — uninstalls the installed app first, silently. The build then holds the id Horizon OS has a
+YouTube VR record for, so the headset treats it as the store app: no sideloading warning, a warning on
+every reboot (the user's report, not something this repo measured), and a collision on the next store
+update, because our build is signed differently and Android will not update across signatures.
+
+One trap does **not** apply to Manager: it filters patches before any patch executes, so *Clone app*
+renaming the package cannot filter other patches out of the same pass. The "Clone app must be applied
+last" note above is about the two-pass CLI script.
+
 ### Known behaviour: the "App name unavailable" card
 
 While a **cloned** build is running, its card in the Quest library (after pressing the Meta/Quest
