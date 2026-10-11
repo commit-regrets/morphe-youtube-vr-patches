@@ -1,0 +1,48 @@
+name: Mirror to GitLab
+
+# Keeps the GitLab copy identical to GitHub. One-way on purpose: GitHub is the source of truth, and a
+# mirror is only useful if it cannot diverge. The deploy key below holds write access to exactly one
+# project, and the private archive (ytvr-private-notes) is deliberately outside this arrangement.
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Never cancel a mirror half-way; a stale mirror is worse than a slow one.
+concurrency:
+  group: mirror-gitlab
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Push to GitLab
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (all refs and tags)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Load the GitLab deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GITLAB_DEPLOY_KEY }}
+
+      - name: Trust gitlab.com
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -t ed25519 gitlab.com >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Push branches and tags
+        run: |
+          set -euo pipefail
+          git remote add gitlab git@gitlab.com:commit-regrets/morphe-youtube-vr-patches.git
+          # Ref-for-ref rather than --mirror: remote-tracking refs become real branches, tags are
+          # copied, and --prune removes a branch deleted here so the mirror cannot rot.
+          git push --prune gitlab \
+            "+refs/remotes/origin/*:refs/heads/*" \
+            "+refs/tags/*:refs/tags/*"
