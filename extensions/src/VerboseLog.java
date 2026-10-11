@@ -23,10 +23,21 @@ import android.content.SharedPreferences;
  *       field.</li>
  * </ul>
  *
+ * Two sources decide the gate, and the viewer's own row always outranks the build:
+ *
+ * <ol>
+ *   <li>the row's stored value, which is what a release reads;</li>
+ *   <li>{@link #setDefaultEnabled}, called by the patch when its "Verbose diagnostics (development
+ *       only)" option is on -- a development build logs from its first line with nobody tapping the
+ *       row, while a build that did not ask for the diagnostics (CI, a release, an end user's
+ *       apply) is silent with no options at all.</li>
+ * </ol>
+ *
  * Off by default, in this class and in the row's own {@code android:defaultValue}: a build whose
- * row has never been touched logs nothing at all. A gate that cannot be read (no context yet, a
- * preference file that will not open) stays closed for the same reason -- silence is the safe
- * failure here, and a log line is never worth an exception thrown into the app.
+ * row has never been touched and whose diagnostics were not asked for logs nothing at all. A gate
+ * that cannot be read (no context yet, a preference file that will not open) stays closed for the
+ * same reason -- silence is the safe failure here, and a log line is never worth an exception
+ * thrown into the app.
  */
 public final class VerboseLog implements SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -47,6 +58,20 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     /** The gate. Read on every log line, so it is a field and never a preference lookup. */
     private static volatile boolean enabled;
 
+    /**
+     * The build's own default, for a build that said "I am developing": {@link #setDefaultEnabled}.
+     * A stored row value always wins over it, so a viewer who turned logging off stays quiet even
+     * in a diagnostics build.
+     */
+    private static volatile boolean fallback;
+
+    /**
+     * The preference file, kept so {@link #setDefaultEnabled} can re-read it: the two calls the
+     * patch injects at Application.onCreate come from two different patches, and neither may assume
+     * it runs first.
+     */
+    private static volatile SharedPreferences preferences;
+
     /** True once the listener is registered, so a second {@link #init} cannot register it twice. */
     private static volatile boolean watching;
 
@@ -54,11 +79,10 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     }
 
     /**
-     * Reads the row's stored value and starts watching it. Called at Application.onCreate -- the
-     * Extension patch injects the call, and {@link SponsorBlockSettings#initContext} makes it too,
-     * because the two are injected into the same method and neither may assume it runs first. A
-     * gate initialised after the settings dump would swallow the one line that says what the
-     * screen is set to, and this is idempotent, so the second call costs nothing.
+     * Reads the row's stored value -- falling back to the build's own default -- and starts
+     * watching it. Called at Application.onCreate by the Extension patch and again by
+     * {@link SponsorBlockSettings#initContext}, because the two are injected into the same method
+     * and neither may assume it runs first. This is idempotent, so the second call costs nothing.
      */
     public static void init(Context appContext) {
         try {
@@ -66,13 +90,43 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
             if (mod == null) {
                 return;
             }
-            enabled = mod.getBoolean(KEY_VERBOSE_LOGGING, false);
+            preferences = mod;
+            enabled = mod.getBoolean(KEY_VERBOSE_LOGGING, fallback);
             if (!watching) {
                 watching = true;
                 mod.registerOnSharedPreferenceChangeListener(LISTENER);
             }
+            if (enabled) {
+                SponsorBlockSettings.onLogGateOpened();
+            }
         } catch (Throwable t) {
             enabled = false;
+        }
+    }
+
+    /**
+     * The build's default, from the patch's "Verbose diagnostics (development only)" option: a
+     * development build logs from its first line without anybody tapping the row, and a build that
+     * never asked for the diagnostics stays silent.
+     *
+     * It re-reads rather than only remembering the flag, because this call and {@link #init} are
+     * inserted into Application.onCreate by two different patches in whichever order they are
+     * applied (1.88.10: the SponsorBlock patch's call lands first inside the method): if init ran
+     * with the fallback still false, this call has to be able to open the gate afterwards. A stored
+     * row value wins over the default, so a viewer's own choice survives a development build.
+     */
+    public static void setDefaultEnabled(boolean value) {
+        fallback = value;
+        SharedPreferences mod = preferences;
+        if (mod != null) {
+            try {
+                enabled = mod.getBoolean(KEY_VERBOSE_LOGGING, value);
+            } catch (Throwable t) {
+                // Keep the answer the last read produced; a gate that cannot be read stays closed.
+            }
+        }
+        if (enabled) {
+            SponsorBlockSettings.onLogGateOpened();
         }
     }
 
@@ -95,12 +149,16 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
 
     /**
      * The live half of the toggle: androidx persists the row's own Boolean, and this picks the new
-     * value up wherever the write came from. No restart, no re-read on the log path.
+     * value up wherever the write came from. No restart, no re-read on the log path. The build's
+     * default is the fallback, so clearing the row returns the gate to what the build asked for.
      */
     @Override
     public void onSharedPreferenceChanged(SharedPreferences preferences, String key) {
         if (KEY_VERBOSE_LOGGING.equals(key)) {
-            enabled = preferences.getBoolean(KEY_VERBOSE_LOGGING, false);
+            enabled = preferences.getBoolean(KEY_VERBOSE_LOGGING, fallback);
+            if (enabled) {
+                SponsorBlockSettings.onLogGateOpened();
+            }
         }
     }
 }

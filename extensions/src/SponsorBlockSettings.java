@@ -66,6 +66,10 @@ public final class SponsorBlockSettings {
     /** The seek-bar markers, which are this port's own addition, not the phone patch's. */
     private static volatile boolean markersEnabled = true;
     private static volatile Context context;
+    /** True once {@link #initContext} has finished its migrations: the dump reports their result. */
+    private static volatile boolean storeReady;
+    /** True once the start-up dump has actually been printed, so a later gate cannot repeat it. */
+    private static volatile boolean dumpLogged;
 
     private SponsorBlockSettings() {
     }
@@ -324,10 +328,32 @@ public final class SponsorBlockSettings {
             VerboseLog.init(context);
             migrateLegacySwitches();
             migrateOldDefaults();
-            logModSettings();
+            // Only now is the store ready for the dump: it reports the post-migration state, so the
+            // dump must not be emitted before this point even by a gate that opened first (see
+            // onLogGateOpened).
+            storeReady = true;
+            onLogGateOpened();
         } catch (Throwable t) {
             log("settings store failed: " + t);
         }
+    }
+
+    /**
+     * Prints the start-up dump unless it has already been printed, and only with the gate open.
+     *
+     * Called at the end of {@link #initContext} and from {@link VerboseLog} every time its gate
+     * opens, because the two injected calls at Application.onCreate come from two different patches
+     * and either may run first. In 1.88.10 the order inside the method is the SponsorBlock block
+     * (configure, initContext) and *then* the Extension block (the diagnostics default, init), so a
+     * development build would otherwise build the dump while the gate was still closed and never
+     * print the one line that says what the settings screen is set to.
+     */
+    static void onLogGateOpened() {
+        if (dumpLogged || !storeReady || !VerboseLog.enabled()) {
+            return;
+        }
+        dumpLogged = true;
+        logModSettings();
     }
 
     /**
