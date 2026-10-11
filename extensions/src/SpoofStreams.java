@@ -1309,7 +1309,8 @@ public final class SpoofStreams {
         return end < 0 ? null : json.substring(start, end);
     }
 
+    /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
     private static void log(String message) {
-        System.out.println(TAG + ": " + message);
+        VerboseLog.log(TAG, message);
     }
 }

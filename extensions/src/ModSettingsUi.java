@@ -13,6 +13,8 @@ package app.ytvr.extension;
  * ({@code YtvrSbGoBack} -- our name on the app's class, so R8 renames cannot break the call).
  */
 public final class ModSettingsUi {
+    private static final String TAG = "SponsorBlock";
+
     private static volatile Object sSettings;
 
     private ModSettingsUi() {
@@ -21,7 +23,7 @@ public final class ModSettingsUi {
     /** Called by the settings holder when its view is created. */
     public static void onSettingsShown(Object settings) {
         sSettings = settings;
-        System.out.println("SponsorBlock: patch settings back registered");
+        log("patch settings back registered");
     }
 
     /**
@@ -32,7 +34,7 @@ public final class ModSettingsUi {
     public static void onSettingsHidden(Object fragment) {
         if (fragment == sSettings) {
             sSettings = null;
-            System.out.println("SponsorBlock: patch settings back deregistered");
+            log("patch settings back deregistered");
         }
     }
 
@@ -41,7 +43,7 @@ public final class ModSettingsUi {
      * was consumed (the caller must not run its own handling).
      */
     public static boolean goBack() {
-        System.out.println("SponsorBlock: patch settings back pressed, registered=" + (sSettings != null));
+        log("patch settings back pressed, registered=" + (sSettings != null));
         Object settings = sSettings;
         if (settings == null) {
             return false;
@@ -50,8 +52,13 @@ public final class ModSettingsUi {
             settings.getClass().getMethod("YtvrSbGoBack").invoke(settings);
             return true;
         } catch (Exception exception) {
-            System.out.println("SponsorBlock: patch settings back failed: " + exception);
+            log("patch settings back failed: " + exception);
             return false;
         }
+    }
+
+    /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
+    private static void log(String message) {
+        VerboseLog.log(TAG, message);
     }
 }

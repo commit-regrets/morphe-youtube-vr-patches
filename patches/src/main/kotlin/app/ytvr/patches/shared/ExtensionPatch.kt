@@ -437,6 +437,13 @@ val extensionPatch = bytecodePatch(
     // route, every HTTP request, every media request and every ad-path entry
     // point, and runs a few extra probe fetches. Off by default so a normal
     // build stays quiet and fast.
+    //
+    // This selects *which hooks are installed*. It no longer decides whether they
+    // print: every log line goes through the extension's `VerboseLog`, whose gate is
+    // the "Verbose logging" row in the in-app "Patch settings" hub (default off, so
+    // a released build is silent). A diagnostics build therefore wants that row
+    // turned on as well -- it sticks in the app's preference file, so it is a
+    // one-time tap rather than a per-build setting.
     val enableDiagnostics by booleanOption(
         key = "enableDiagnostics",
         default = false,
@@ -505,6 +512,20 @@ val extensionPatch = bytecodePatch(
     })
 
     execute {
+        // The log gate, at the earliest point there is. Every log line in the extension goes
+        // through `VerboseLog.log`, whose switch is the "Verbose logging" row the SponsorBlock
+        // patch adds to the hub; without this call the gate would only be initialised when that
+        // patch is applied, and a build of the Extension patch alone would have no way to turn its
+        // own diagnostics on. `VerboseLog.init` is idempotent, so the SponsorBlock patch's own
+        // call (it has to make one too, because the two are injected into this same method and
+        // neither may assume it runs first) is free.
+        applicationOnCreateFingerprint.method.addInstructions(
+            0,
+            """
+                invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
+            """.trimIndent()
+        )
+
         // Give the app a task label. Horizon OS's library names a *running* app from the store's
         // record for its package; a re-signed, renamed build has none, and the fallback is the
         // task label, which this app leaves null -- so the library shows its "App name

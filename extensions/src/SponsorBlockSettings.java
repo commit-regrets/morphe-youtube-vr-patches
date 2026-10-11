@@ -292,7 +292,16 @@ public final class SponsorBlockSettings {
      * where every switch on its settings screen is persisted — including the rows this patch adds.
      */
     private static SharedPreferences modPreferences() {
-        Context appContext = context;
+        return modPreferences(context);
+    }
+
+    /**
+     * The same file for a caller that has a context of its own: {@link VerboseLog} reads the log
+     * row at Application.onCreate, where the order against {@link #initContext} is the patch's
+     * business rather than this class's. The file's name stays in one place, which is what keeps
+     * the two readers on the same file.
+     */
+    static SharedPreferences modPreferences(Context appContext) {
         if (appContext == null) {
             return null;
         }
@@ -308,6 +317,11 @@ public final class SponsorBlockSettings {
     public static void initContext(Context appContext) {
         try {
             context = appContext == null ? null : appContext.getApplicationContext();
+            // Before the first log line below: the gate has to know the row's value, and this call
+            // cannot assume the Extension patch's own init ran first (both are injected into the
+            // same Application.onCreate). VerboseLog.init is idempotent, so this costs nothing when
+            // it did.
+            VerboseLog.init(context);
             migrateLegacySwitches();
             migrateOldDefaults();
             logModSettings();
@@ -368,12 +382,17 @@ public final class SponsorBlockSettings {
             Boolean on = modBoolean(KEY_MOD_ENABLED);
             Boolean markers = modBoolean(KEY_MOD_MARKERS);
             Boolean once = modBoolean(KEY_SKIP_ONCE);
-            if (on == null && markers == null) {
+            // The log gate's own row, reported like the rest: this line is the only one that says
+            // what the screen is set to, and it is itself gated, so it has to say whether the gate
+            // it is behind is open.
+            Boolean verbose = modBoolean(VerboseLog.KEY_VERBOSE_LOGGING);
+            if (on == null && markers == null && verbose == null) {
                 text.append("the screen's switches are not there yet");
             } else {
                 text.append("sponsorblock=").append(on == null ? "(default)" : on);
                 text.append(" markers=").append(markers == null ? "(default)" : markers);
                 text.append(" skipOnce=").append(once == null ? "(default)" : once);
+                text.append(" verboseLogging=").append(verbose == null ? "(default)" : verbose);
             }
             int enabled_categories = 0;
             StringBuilder effective = new StringBuilder();
@@ -470,7 +489,8 @@ public final class SponsorBlockSettings {
         return "manual-skip".equals(value) ? "seekbar-only" : value;
     }
 
+    /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
     private static void log(String message) {
-        System.out.println(TAG + ": " + message);
+        VerboseLog.log(TAG, message);
     }
 }
