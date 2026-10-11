@@ -1,25 +1,10 @@
 import { generateNotes } from '@semantic-release/release-notes-generator';
-import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 
-const require = createRequire(import.meta.url);
-const pkgJsonPath = p => path.join(path.dirname(require.resolve(p)), 'package.json');
-
-const presetPkg = pkgJsonPath('conventional-changelog-conventionalcommits');
-console.log('preset version:', JSON.parse(fs.readFileSync(presetPkg)).version, 'at', presetPkg);
-
-const presetMain = require.resolve('conventional-changelog-conventionalcommits');
-const presetRequire = createRequire(presetMain);
-try {
-  const wMain = presetRequire.resolve('conventional-changelog-writer');
-  const wPkg = path.join(path.dirname(wMain), 'package.json');
-  console.log('preset->writer:', JSON.parse(fs.readFileSync(wPkg)).version, 'at', wMain);
-} catch (e) {
-  console.log('preset->writer resolve FAILED:', e.message.split('\n')[0]);
-}
 console.log('node:', process.version);
+console.log('preset URL:', import.meta.resolve('conventional-changelog-conventionalcommits'));
+console.log('writer URL from root:', import.meta.resolve('conventional-changelog-writer'));
 
 const raw = execSync('git log v1.22.1..HEAD --pretty=format:%H%x00%s%x00%b%x1e').toString();
 const commits = raw.split('\u001e').filter(Boolean).map(r => {
@@ -51,6 +36,7 @@ try {
   });
   console.log('RENDER OK, first 2 lines:\n' + notes.split('\n').slice(0, 2).join('\n'));
 } catch (e) {
-  console.log('RENDER FAILED:', e.message.split('\n')[0]);
+  console.log('RENDER FAILED:');
+  console.log(e.stack);
   process.exitCode = 1;
 }
