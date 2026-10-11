@@ -40,37 +40,67 @@ import javax.xml.transform.stream.StreamResult
  * XML attributes carry no such risk.
  *
  * The files are *found*, never guessed: a bytecode patch's `fileWorkspace` is a scratch directory,
- * not the decoded resource tree, which lives beside it under `apk/resources/package_<n>/`. A wrong
- * guess used to mean a silent no-op, so a miss now throws.
+ * not the decoded resource tree, which lives under `apk/resources/package_<n>/` of the patcher's
+ * *session*. A wrong guess used to mean a silent no-op, so a miss now throws -- and names every
+ * root it searched, see below.
+ *
+ * **Where** that session is relative to the workspace depends on the host, so the workspace's
+ * parent is no longer assumed to *be* the session root. Both layouts run patcher 1.15.1; the
+ * difference is the host's, not a version's:
+ *
+ * - **CLI**: one session directory holds everything. The patcher derives its workspace itself
+ *   (`PatcherConfig`: `fileWorkspace = temporaryFilesPath.resolve("workspace")`, decoded tree in
+ *   `temporaryFilesPath/apk/resources/package_<n>/`), so the workspace's parent *is* the session
+ *   root -- the assumption this function used to make, and the only layout it could find.
+ * - **Morphe Manager**: the session is deliberately *split* (`Session.kt`). The decoded tree goes
+ *   under `cacheDir/patcher`, and `cacheDir` is `fs.tempDir.absolutePath`, i.e.
+ *   `app.getDir("ephemeral")` (`Filesystem.kt`) -- so `.../app_ephemeral/patcher/apk/resources/…`.
+ *   The workspace is `context.cacheDir/patch-workspace`, deliberately *not* under that temporary
+ *   directory, because "the patcher wipes that directory when it starts". Searching the
+ *   workspace's parent therefore looked in `.../cache`, found nothing and threw
+ *   (Manager 1.35.0, patcher 1.15.1): `no settings preferences XML under
+ *   …/cache`. The app-data root covers both `app_ephemeral/…` and `cache/…` and is two levels
+ *   above the workspace.
+ *
+ * So the tree is looked for under a bounded list of the workspace's ancestors, nearest first, and
+ * the first root that holds a file answers for it. The filesystem root is never searched and
+ * [MAX_RESOURCE_ROOT_ANCESTORS] caps the walk, so a miss costs a handful of directory listings
+ * rather than a walk up to the root of the disk.
  */
 internal fun restructureSettingsXmls(
     patchWorkspace: File,
     sbScreenXmlId: Int,
     categoryDefaults: Map<String, String>,
 ) {
-    val sessionRoot = patchWorkspace.parentFile ?: patchWorkspace
-    val mainFiles = MAIN_SETTINGS_XML_NAMES.flatMap { name -> findFiles(sessionRoot, name, 0) }
+    val roots = resourceRootCandidates(patchWorkspace)
+    if (roots.isEmpty()) {
+        throw PatchException(
+            "Patch settings: ${patchWorkspace.absolutePath} has no parent directory to search " +
+                "for the decoded resource tree",
+        )
+    }
+    val mainFiles = MAIN_SETTINGS_XML_NAMES.flatMap { name -> findInRoots(roots, name) }
     if (mainFiles.isEmpty()) {
         throw PatchException(
-            "Patch settings: no settings preferences XML under " + sessionRoot.absolutePath +
+            "Patch settings: no settings preferences XML in " + describeRoots(roots) +
                 "; looked for " + MAIN_SETTINGS_XML_NAMES.joinToString(),
         )
     }
     mainFiles.forEach { addModSettingsEntry(it) }
-    val hubFiles = findFiles(sessionRoot, HUB_XML_NAME, 0)
+    val hubFiles = findInRoots(roots, HUB_XML_NAME)
     if (hubFiles.isEmpty()) {
         throw PatchException(
-            "Patch settings: no $HUB_XML_NAME under " + sessionRoot.absolutePath +
+            "Patch settings: no $HUB_XML_NAME in " + describeRoots(roots) +
                 " -- the hub has nothing to be inflated from",
         )
     }
     hubFiles.forEach { fillHubScreen(it) }
-    val sbName = resolveResourceName(sessionRoot, sbScreenXmlId)
-    val sbFiles = findFiles(sessionRoot, "$sbName.xml", 0)
+    val sbName = resolveResourceName(roots, sbScreenXmlId)
+    val sbFiles = findInRoots(roots, "$sbName.xml")
     if (sbFiles.isEmpty()) {
         throw PatchException(
             "Patch settings: the mined xml id ${"0x%08x".format(sbScreenXmlId)} resolves to " +
-                "'$sbName' but no $sbName.xml exists under " + sessionRoot.absolutePath,
+                "'$sbName' but no $sbName.xml exists in " + describeRoots(roots),
         )
     }
     sbFiles.forEach { fillSponsorBlockScreen(it, categoryDefaults) }
@@ -78,8 +108,61 @@ internal fun restructureSettingsXmls(
     // exist as arrays. They go into the values file that already holds arrays rather than a new
     // one, so the encoder only has to accept new *names* in a file it already knows.
     addBehaviourArrays(sbFiles.first(), categoryDefaults)
-    findFiles(sessionRoot, DEPRECATED_HOLDER_LAYOUT_NAME, 0)
+    findInRoots(roots, DEPRECATED_HOLDER_LAYOUT_NAME)
         .forEach { moveHolderBackButtonToLeft(it) }
+}
+
+/**
+ * How many ancestor levels above [patchWorkspace] are searched for the decoded resource tree.
+ *
+ * Four covers both known layouts with room to spare (Manager's app-data root is two up), and is
+ * the whole point of the budget: the walk must not climb from an app-private scratch directory to
+ * a filesystem root and start listing whatever lives there.
+ */
+private const val MAX_RESOURCE_ROOT_ANCESTORS = 4
+
+/**
+ * How deep below one root the tree may sit. The root searched can now be [MAX_RESOURCE_ROOT_ANCESTORS]
+ * levels above the workspace, so this is the old session-relative budget plus that offset:
+ * Manager's `app_ephemeral/patcher/apk/resources/package_<n>/res/xml/settings_prefs.xml` is seven
+ * levels below the app-data root that is searched, and the decode owns every level below it.
+ */
+private const val MAX_RESOURCE_TREE_DEPTH = 12
+
+/**
+ * The roots to search for the decoded tree, nearest first: [patchWorkspace]'s parent and up to
+ * [MAX_RESOURCE_ROOT_ANCESTORS] ancestors above it. A filesystem root is never included -- it has
+ * no parent, and is never a patcher session.
+ */
+private fun resourceRootCandidates(patchWorkspace: File): List<File> {
+    val roots = mutableListOf<File>()
+    var current = patchWorkspace.absoluteFile.parentFile
+    while (current != null && current.parentFile != null && roots.size < MAX_RESOURCE_ROOT_ANCESTORS) {
+        roots += current
+        current = current.parentFile
+    }
+    return roots
+}
+
+/**
+ * Names every root that was searched, so a future host whose layout surprises this function is
+ * diagnosable from the exception alone -- which is what the Manager failure above was not.
+ */
+private fun describeRoots(roots: List<File>): String = "any of " + roots.joinToString("; ") { it.absolutePath }
+
+/**
+ * The files named [name] under the *first* root that has any. Nearest-first ordering is what keeps
+ * the CLI's layout as cheap as it was (its own session root answers immediately) while Manager's
+ * wider roots are only walked when the nearer ones hold nothing.
+ */
+private fun findInRoots(roots: List<File>, name: String): List<File> {
+    for (root in roots) {
+        val found = findFiles(root, name, 0)
+        if (found.isNotEmpty()) {
+            return found
+        }
+    }
+    return emptyList()
 }
 
 private val MAIN_SETTINGS_XML_NAMES = listOf("settings_prefs.xml", "panel2_settings_prefs.xml")
@@ -116,14 +199,12 @@ private fun moveHolderBackButtonToLeft(xml: File) = editXml(xml) { root ->
     }
 }
 
-
-
 /** Maps a resource id to its name through the decode's `res/values/public.xml` files. */
-private fun resolveResourceName(sessionRoot: File, id: Int): String {
-    val publicFiles = findFiles(sessionRoot, "public.xml", 0)
+private fun resolveResourceName(roots: List<File>, id: Int): String {
+    val publicFiles = findInRoots(roots, "public.xml")
     if (publicFiles.isEmpty()) {
         throw PatchException(
-            "Patch settings: no public.xml under " + sessionRoot.absolutePath +
+            "Patch settings: no public.xml in " + describeRoots(roots) +
                 " -- cannot resolve the mined xml id to a file",
         )
     }
@@ -144,7 +225,7 @@ private fun resolveResourceName(sessionRoot: File, id: Int): String {
 }
 
 private fun findFiles(directory: File, name: String, depth: Int): List<File> {
-    if (depth > 8 || !directory.isDirectory) {
+    if (depth > MAX_RESOURCE_TREE_DEPTH || !directory.isDirectory) {
         return emptyList()
     }
     val found = mutableListOf<File>()
@@ -362,57 +443,69 @@ private val CATEGORIES = listOf(
 private fun subScreenRows(
     categoryDefaults: Map<String, String>,
 ): List<Pair<String, List<Pair<String, String>>>> = buildList {
-    add(SWITCH to listOf(
-        "android:title" to "SponsorBlock",
-        "android:key" to SUBSCREEN_MASTER_KEY,
-        "android:defaultValue" to "true",
-        "android:summary" to "Skips crowd-sourced sponsor segments",
-    ))
-    add(SWITCH to listOf(
-        "android:title" to "Seek-bar markers",
-        "android:key" to "ytvr_mod_sb_markers",
-        "android:defaultValue" to "true",
-        "android:summary" to "Shows the segment categories on the seek bar",
-    ))
+    add(
+        SWITCH to listOf(
+            "android:title" to "SponsorBlock",
+            "android:key" to SUBSCREEN_MASTER_KEY,
+            "android:defaultValue" to "true",
+            "android:summary" to "Skips crowd-sourced sponsor segments",
+        ),
+    )
+    add(
+        SWITCH to listOf(
+            "android:title" to "Seek-bar markers",
+            "android:key" to "ytvr_mod_sb_markers",
+            "android:defaultValue" to "true",
+            "android:summary" to "Shows the segment categories on the seek bar",
+        ),
+    )
     // The old global "Skip each segment only once" switch is gone: every category carries its own
     // behaviour now, which is what that switch was standing in for. The key is still read by the
     // extension so a choice made with it is not lost (see SponsorBlockSettings.behaviour).
-    add("PreferenceCategory" to listOf(
-        "android:layout" to CATEGORY_LAYOUT,
-        "android:title" to "Categories",
-        "android:selectable" to "false",
-    ))
+    add(
+        "PreferenceCategory" to listOf(
+            "android:layout" to CATEGORY_LAYOUT,
+            "android:title" to "Categories",
+            "android:selectable" to "false",
+        ),
+    )
     for ((key, title) in CATEGORIES) {
         val highlight = key == "poi_highlight"
-        add(LIST to listOf(
-            "android:title" to title,
-            "android:key" to BEHAVIOUR_KEY_PREFIX + key,
-            "android:defaultValue" to rowDefault(categoryDefaults[key], highlight),
-            "android:entries" to (if (highlight) HIGHLIGHT_ENTRIES else BEHAVIOUR_ENTRIES),
-            "android:entryValues" to (if (highlight) HIGHLIGHT_VALUES else BEHAVIOUR_VALUES),
-            // ListPreference replaces %s with the selected entry, so the row itself says what it
-            // currently does -- the same "Skip automatically once" subtitle the phone patch shows.
-            "android:summary" to "%s",
-        ))
+        add(
+            LIST to listOf(
+                "android:title" to title,
+                "android:key" to BEHAVIOUR_KEY_PREFIX + key,
+                "android:defaultValue" to rowDefault(categoryDefaults[key], highlight),
+                "android:entries" to (if (highlight) HIGHLIGHT_ENTRIES else BEHAVIOUR_ENTRIES),
+                "android:entryValues" to (if (highlight) HIGHLIGHT_VALUES else BEHAVIOUR_VALUES),
+                // ListPreference replaces %s with the selected entry, so the row itself says what it
+                // currently does -- the same "Skip automatically once" subtitle the phone patch shows.
+                "android:summary" to "%s",
+            ),
+        )
     }
     // The two rows that are not per-category.
     //
     // "Stats" is display-only (`selectable=false`), and the extension writes its summary at bind
     // time -- a static XML summary could never show a running total.
-    add(PLAIN to listOf(
-        "android:title" to STATS_TITLE,
-        "android:key" to STATS_KEY,
-        "android:selectable" to "false",
-    ))
+    add(
+        PLAIN to listOf(
+            "android:title" to STATS_TITLE,
+            "android:key" to STATS_KEY,
+            "android:selectable" to "false",
+        ),
+    )
     // A plain SeekBarPreference on purpose: its `min`/`max`/`showSeekBarValue` are *app*-namespace
     // attributes, and injecting those would mean declaring another namespace inside the app's own
     // preference file. The range defaults to 0..100 and the extension writes the current value into
     // the summary at bind time instead, which reads better than the widget's own value label.
-    add(SEEK_BAR to listOf(
-        "android:title" to MIN_DURATION_TITLE,
-        "android:key" to MIN_DURATION_KEY,
-        "android:defaultValue" to "0",
-    ))
+    add(
+        SEEK_BAR to listOf(
+            "android:title" to MIN_DURATION_TITLE,
+            "android:key" to MIN_DURATION_KEY,
+            "android:defaultValue" to "0",
+        ),
+    )
 }
 
 /** The rows' titles as the extension's row hook recognises them (see CategoryRows). */
@@ -487,7 +580,6 @@ private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, St
     }
 }
 
-private fun Element.childElements(): List<Element> =
-    (0 until childNodes.length).mapNotNull { index ->
-        childNodes.item(index) as? Element
-    }
+private fun Element.childElements(): List<Element> = (0 until childNodes.length).mapNotNull { index ->
+    childNodes.item(index) as? Element
+}
