@@ -32,7 +32,14 @@ accordingly; see [LICENSE](LICENSE) (GNU GPL-3.0, kept from upstream).
   **[MorpheApp/morphe-patches](https://github.com/MorpheApp/morphe-patches)** — the patcher API
   and the official patch bundle this repo builds against. The official bundle's **Clone app**
   patch is required to install any of this on a Quest, because a differently signed APK cannot
-  update the store app.
+  update the store app. This repo's own **Install as clone** patch
+  (`patches/src/main/kotlin/app/ytvr/patches/misc/InstallAsClonePatch.kt`) is adapted from that
+  file, `patches/src/main/kotlin/app/morphe/patches/all/misc/clone/CloneAppPatch.kt` (GPL-3.0, the
+  same licence), with its copyright and Section 7b notice header kept in place. It exists because
+  *Clone app* is universal and the patcher forbids a universal patch from being default-selected,
+  so Manager's Simple mode could never apply it to this app; the port declares the app package
+  instead, which makes `default = true` legal. Dropped from the original: its Reddit bytecode fix,
+  its phone-app option overrides and its incompatible-app list.
 - **[ReVanced](https://github.com/ReVanced)** — the upstream project Morphe derives from, and the
   source of several approaches this work measured against or adapted, notably
   `removeVideoPlaybackPostBody`, `blockGetWatchRequest` and `blockInitPlaybackRequest`.

@@ -32,8 +32,15 @@ Supported app versions:
 
 A patched APK is signed differently from Google's, so it cannot update the store
 app in place — Horizon OS detects the mismatch and asks for the app to be removed.
-Install it as a **separate app** instead: apply the patches, then the official
-**Clone app** patch (which renames the package), then install.
+Install it as a **separate app** instead: this bundle's **Install as clone** patch renames the
+package, and it is **on by default**, so a normal run produces that separate app with no extra
+step. Its *Package name* option is the choice:
+
+* **Clone** (the default) — `app.morphe.android.youtube`: a second app, next to the store's
+  YouTube VR, which is left untouched.
+* **Replace** — keeps `com.google.android.apps.youtube.vr.oculus`: the store copy has to be
+  uninstalled first (the signatures differ), Horizon OS then treats this build as the YouTube VR
+  app (a restore prompt, and a warning on every reboot), and the next store update collides with it.
 
 The patched app is listed as **YouTube VR (patched)**; change it with `-AppName` or `-OappName=…`.
 (The official "Custom branding" patch does not apply to this app.)
@@ -46,59 +53,69 @@ pwsh -File scripts/patch-and-install.ps1 -Apk <path-to-youtube-vr.apk> `
   -PackageName app.morphe.android.youtube
 ```
 
-It runs our bundle → *Clone app* → `adb install`, checks the *effective* option
-values from the patch result, and stops with a clear message if any patch failed.
-Add `-NoSpoof` to apply the patches with the streaming spoof off (for A/B
+It runs our bundle (clone included) → `adb install`, checks the *effective* option
+values from the patch result — including the package id the rename actually took, so a
+silently dropped option or a rename that no-ops cannot ship — and stops with a clear message if any
+patch failed. Add `-NoSpoof` to apply the patches with the streaming spoof off (for A/B
 comparisons only — the ad-free behaviour comes from the spoof), and
-`-OutDir`/`-OurBundle`/`-OfficialBundle`/`-MorpheCli` if your paths differ.
+`-OutDir`/`-OurBundle`/`-MorpheCli` if your paths differ. `-OfficialClone` is the escape hatch that
+renames with the official *Clone app* instead; it disables ours for that run, because two renamers
+must never run together. `-NoClone` renames nothing at all, for a build that is not meant to be
+installed.
 
-By hand, the two applies are:
+By hand, it is one apply:
 
 ```bash
 JAVA=java; M=morphe-desktop-all.jar
-# 1. our patches, defaults (ad-free ON, app named "YouTube VR (patched)")
+# our patches, defaults: clone included, and the id is the one the clone option defaults to
 "$JAVA" -jar "$M" patch --patches patches-<version>.mpp -o out.apk youtube-vr.apk
-# 2. clone, so the patched app can coexist with the store app -- `-O` BEFORE `--enable`
-"$JAVA" -jar "$M" patch --patches morphe-official-patches.mpp \
-  '-OpackageName=app.morphe.android.youtube' \
-  --exclusive --enable "Clone app" -o out-final.apk out.apk
-adb install -r out-final.apk
+adb install -r out.apk
 ```
 
 Two traps worth knowing: **every `-O` on a command line belongs to the first `--enable`**, so a
 second patch's option is silently dropped — the script passes options through a generated
-`--options-file` instead and asserts the effective values from `--result-file`; and **patches are
-filtered by package name**, so *Clone app* must be applied last. The rest are in
-[docs/INTERNALS.md](docs/INTERNALS.md).
+`--options-file` instead and asserts the effective values from `--result-file`; and if you use the
+official *Clone app* instead, it has to be its own pass with `--exclusive --enable "Clone app"`,
+because **patches are filtered by package name** and anything after the rename applies 0 patches.
+The rest are in [docs/INTERNALS.md](docs/INTERNALS.md).
 
 ### Installing with Morphe Manager
 
-The [add-source link](#how-to-use-these-patches) above is all Manager needs; the *clone* step is the
-part that is hidden. Manager opens in **Simple mode**, which applies only *default-selected* patches,
-and the official Morphe bundle contributes none for YouTube VR — so a Simple-mode run applies this
-bundle alone and never draws a patch list at all. That is why there is no clone option to find in it.
+The [add-source link](#how-to-use-these-patches) above is all Manager needs — **including the
+clone**, which this bundle now performs itself. **Install as clone** is a patch *for this app*
+(`compatibleWith(…youtube.vr.oculus)`), which makes it a *default* patch, so Manager's **Simple
+mode** applies it along with the rest: pick the app, patch, install, and the patched build arrives
+as a second app next to the store's YouTube VR. **Expert mode is no longer needed for the clone.**
 
-To get one: **Settings → Advanced → Expert mode** (off by default), pick the app, then read the patch
-list. **Clone app** is in the last, **collapsed** *Universal patches* block, on the *Morphe Patches*
-(official) source's page; Manager badges it **Clone** and, once it is ticked, warns "This will install
-a clone … Will install as `<package>`". A universal patch is never part of a default run by
-construction — the patcher rejects one declared default-on ("Universal patches must be declared with
-default false").
+That is exactly what changed, and why it could not be done with the official patch: the clone step
+used to come from the official bundle's **Clone app**, which is a *universal* patch, and the
+patcher refuses a universal patch declared default-on — "Universal patches must be declared with
+default false". A universal patch can therefore never be part of a default run, so Simple mode
+never showed or applied it, and the only way to reach it was **Settings → Advanced → Expert mode**
+(off by default), where it sits in the last, *collapsed* **Universal patches** block of the
+*Morphe Patches* (official) source's page. This repository's own patch is app-specific, so
+`default = true` is legal. The option this project uses is `app.morphe.android.youtube`, the id the
+maintainer's own device uses; Manager badges the patch **Clone** and, once the option is set, warns
+"This will install a clone … Will install as `<package>`" — it recognises any patch with an option
+keyed `packageName`.
 
-Left at its default package name (`"Default"`), the clone gets the id `<original>.morphe`
-(`com.google.android.apps.youtube.vr.oculus.morphe`). This project's builds use
-`app.morphe.android.youtube` — the id the maintainer's own device uses.
+**Do not tick both renamers in one Expert-mode run.** If our **Install as clone** and the official
+**Clone app** are both selected, both finalise and the **official one wins**: patches execute
+alphabetically and their finalize blocks run in reverse, so the official rename is applied last.
+(The local `scripts/patch-and-install.ps1` never does this: `-OfficialClone` disables ours for that
+run.)
 
-**Skipping the clone costs more than it looks.** Without it Manager installs the patched build under
-the official id `com.google.android.apps.youtube.vr.oculus`, which cannot coexist with the store app:
-on a signature conflict Manager either shows a conflict dialog, or — with Shizuku and "auto uninstall"
-enabled — uninstalls the installed app first, silently. The build then holds the id Horizon OS has a
-YouTube VR record for, so the headset treats it as the store app: no sideloading warning, a warning on
-every reboot (the user's report, not something this repo measured), and a collision on the next store
-update, because our build is signed differently and Android will not update across signatures.
+**Skipping the clone costs more than it looks.** Without it — Manager's *Replace* mode, or
+`-NoClone` — the build holds the id `com.google.android.apps.youtube.vr.oculus`, which cannot
+coexist with the store app: on a signature conflict Manager either shows a conflict dialog, or —
+with Shizuku and "auto uninstall" enabled — uninstalls the installed app first, silently. The build
+then holds the id Horizon OS has a YouTube VR record for, so the headset treats it as the store
+app: no sideloading warning, a warning on every reboot (the user's report, not something this repo
+measured), and a collision on the next store update, because our build is signed differently and
+Android will not update across signatures.
 
-One trap does **not** apply to Manager: it filters patches before any patch executes, so *Clone app*
-renaming the package cannot filter other patches out of the same pass. The "Clone app must be applied
+One trap does **not** apply to Manager: it filters patches before any patch executes, so a rename
+cannot filter other patches out of the same pass. The "the official *Clone app* must be applied
 last" note above is about the two-pass CLI script.
 
 ### Known behaviour: the "App name unavailable" card
