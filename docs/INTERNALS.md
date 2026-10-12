@@ -82,6 +82,10 @@ something we tested.
    read from the environment by `settings.gradle.kts`).
 2. Apply with diagnostics on, so diagnostics-gated hooks are exercised too:
    `java -jar morphe-desktop-all.jar patch --patches patches/build/libs/patches-<v>.mpp -OenableDiagnostics=true --result-file out.json -o out.apk <stock apk>`
+   For a local build that only needs *this port's* log lines, `-OforceVerboseLogging=true` is the
+   cheaper switch and the only one that wins over the "Verbose logging" row's stored value: no extra
+   hooks, no probe fetch. Neither is on by default, and a no-option apply injects no logging enable at
+   all (see [AGENTS.md](../AGENTS.md#logging)).
 3. Trust `Applied:` only after checking *which* method changed — ambiguity is silent. Extract the
    last `classes*.dex` from `out.apk`, decompile it, and confirm the hook is in the intended method
    and that the patched-class set is unchanged ([FINGERPRINTS.md](FINGERPRINTS.md) has the list).
