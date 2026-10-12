@@ -32,6 +32,7 @@
     <ID>MagicNumber:SpoofAppVersionPatch.kt$10_000_000</ID>
     <ID>MagicNumber:SpoofAppVersionPatch.kt$1_000</ID>
     <ID>MaxLineLength:DisableQuicPatch.kt$smali = "Lorg/chromium/net/ExperimentalCronetEngine\$Builder;-&gt;enableQuic(Z)Lorg/chromium/net/ExperimentalCronetEngine\$Builder;"</ID>
+    <ID>MaxLineLength:ExtensionPatch.kt$private</ID>
     <ID>MaxLineLength:ExtensionPatch.kt$returnType = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlatypusEnablingManager\$DecisionWithReason;"</ID>
     <ID>MaxLineLength:SponsorBlockPatch.kt$private</ID>
     <ID>MaxLineLength:SponsorBlockPatch.kt$val receiverRegister = (classRead as com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction).registerC</ID>
