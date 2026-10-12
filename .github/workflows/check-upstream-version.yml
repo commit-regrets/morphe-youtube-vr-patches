@@ -5,11 +5,6 @@ on:
     # Run daily at 06:00 UTC
     - cron: '0 6 * * *'
   workflow_dispatch:
-    inputs:
-      mock_version:
-        description: 'Mock store version for dry-run testing (e.g. 1.89.0)'
-        required: false
-        default: ''
 
 concurrency:
   group: check-upstream-version
@@ -35,8 +30,6 @@ jobs:
 
       - name: Query Meta Quest Store
         id: check
-        env:
-          MOCK_STORE_VERSION: ${{ inputs.mock_version }}
         run: node scripts/check-upstream-version.mjs
 
       - name: Process upstream update notification

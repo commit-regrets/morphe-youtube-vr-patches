@@ -31,16 +31,6 @@ const CONSTANTS_FILE = path.join(
 const ISSUE_BODY_FILE = path.join(REPO_ROOT, 'scripts', 'upstream-update-issue.md');
 
 async function fetchLatestStoreBinary() {
-  if (process.env.MOCK_STORE_VERSION) {
-    return {
-      channel: 'LIVE',
-      version: process.env.MOCK_STORE_VERSION,
-      versionCode: 18900000,
-      createdDate: new Date().toISOString(),
-      binaryId: 'mock_test_id',
-    };
-  }
-
   const body = new URLSearchParams({
     access_token: STORE_ACCESS_TOKEN,
     doc_id: DOC_ID_RELEASE_CHANNELS,
