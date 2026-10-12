@@ -24,7 +24,7 @@ jobs:
           SOURCE_BRANCH: ${{ github.ref_name }}
           TARGET_BRANCH: main
         run: |
-          # Check if PR already exists (base=main, head=dev)
+          # Check if PR already exists (base=main, head=develop)
           if gh pr list --base "$TARGET_BRANCH" --head "$SOURCE_BRANCH" --json number | jq -e '. | length > 0' >/dev/null; then
             echo "Pull request already exists."
             exit 0
@@ -41,8 +41,8 @@ jobs:
           gh pr create \
             --base "$TARGET_BRANCH" \
             --head "$SOURCE_BRANCH" \
-            --title 'chore: Merge branch `dev` to `main`' \
-            --body "When dev (pre-release) is ready, then merge this pull request to create a new stable release." \
+            --title 'chore: Merge branch `develop` to `main`' \
+            --body "When develop (pre-release) is ready, then merge this pull request to create a new stable release." \
             || {
               echo "::error::Pull request creation failed. Ensure 'Allow GitHub Actions to create and approve pull requests' is enabled in the repo Settings > Actions > General > Workflow permissions"
               exit 1
