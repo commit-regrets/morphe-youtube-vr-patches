@@ -318,15 +318,38 @@ private const val VERBOSE_LOGGING_KEY = "ytvr_mod_verbose_logging"
 private const val VERBOSE_LOGGING_TITLE = "Verbose logging"
 
 /**
- * The hub's rows: the feature entries, then the diagnostic switch. The switch sits on the hub
- * rather than inside a feature's screen because it gates the whole extension, not SponsorBlock --
- * and it needs no click handler of its own, because a `SwitchPreference` persists itself.
+ * The hub's "Default video quality" row: the resolution every video starts at, read at runtime by
+ * the extension the Default video quality patch injects. The patch's build option seeds the value
+ * on first launch; this row's XML default is only what the picker shows if that seed never ran.
+ */
+private const val VIDEO_QUALITY_KEY = "ytvr_mod_video_quality"
+private const val VIDEO_QUALITY_TITLE = "Default video quality"
+private const val VIDEO_QUALITY_DEFAULT = "4320"
+private const val VIDEO_QUALITY_ARRAY_ENTRIES = "ytvr_vq_entries"
+private const val VIDEO_QUALITY_ARRAY_VALUES = "ytvr_vq_values"
+
+/**
+ * The hub's rows: the feature entries, the video quality picker, then the diagnostic switch. The
+ * switch sits on the hub rather than inside a feature's screen because it gates the whole
+ * extension, not SponsorBlock -- and it needs no click handler of its own, because a
+ * `SwitchPreference` persists itself. The quality picker is a hub-level row for the same reason:
+ * it configures the Default video quality patch, not SponsorBlock.
  */
 private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
     "Preference" to listOf(
         "android:key" to HUB_ENTRY_KEY,
         "android:title" to "SponsorBlock",
         "android:summary" to "Skips crowd-sourced sponsor segments automatically",
+    ),
+    LIST to listOf(
+        "android:key" to VIDEO_QUALITY_KEY,
+        "android:title" to VIDEO_QUALITY_TITLE,
+        "android:defaultValue" to VIDEO_QUALITY_DEFAULT,
+        "android:entries" to "@$VIDEO_QUALITY_ARRAY_ENTRIES",
+        "android:entryValues" to "@$VIDEO_QUALITY_ARRAY_VALUES",
+        // ListPreference replaces %s with the selected entry, so the row itself says what it
+        // currently does -- the same subtitle shape the category pickers use.
+        "android:summary" to "%s",
     ),
     SWITCH to listOf(
         "android:key" to VERBOSE_LOGGING_KEY,
@@ -411,6 +434,19 @@ private val BEHAVIOUR_ENTRY_LABELS = listOf(
     "Disable",
 )
 private val BEHAVIOUR_ENTRY_VALUES = listOf("skip", "skip-once", "seekbar-only", "ignore")
+
+/** The video quality picker's options, in the order the dialog shows them. */
+private val VIDEO_QUALITY_ENTRY_LABELS = listOf(
+    "Highest available",
+    "2160p (4K)",
+    "1440p",
+    "1080p (Full HD)",
+    "720p HD",
+    "480p",
+    "360p",
+    "Auto (per video)",
+)
+private val VIDEO_QUALITY_ENTRY_VALUES = listOf("4320", "2160", "1440", "1080", "720", "480", "360", "auto")
 
 /**
  * Highlight is "the part most people are looking for", not a stretch to skip past, and upstream
@@ -554,20 +590,25 @@ private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, St
             "the first entry (" + BEHAVIOUR_ENTRY_VALUES.first() + ") regardless of the options"
     }
     editXml(arraysFile) { root ->
-        val existing = root.getElementsByTagName("string-array")
-        for (index in 0 until existing.length) {
-            val element = existing.item(index) as? Element ?: continue
-            if (element.getAttribute("name") == "ytvr_sb_behaviour_entries") {
-                return@editXml
+        val existingNames = root.getElementsByTagName("string-array").let { nodes ->
+            (0 until nodes.length).mapNotNull { index ->
+                (nodes.item(index) as? Element)?.getAttribute("name")
             }
-        }
+        }.toSet()
+        // Per-name idempotence, not an early return: the arrays are two features' worth now, and a
+        // decode reused from an older revision may have one set but not the other.
         val arrays = listOf(
             "ytvr_sb_behaviour_entries" to BEHAVIOUR_ENTRY_LABELS,
             "ytvr_sb_behaviour_values" to BEHAVIOUR_ENTRY_VALUES,
             "ytvr_sb_highlight_entries" to HIGHLIGHT_ENTRY_LABELS,
             "ytvr_sb_highlight_values" to HIGHLIGHT_ENTRY_VALUES,
+            VIDEO_QUALITY_ARRAY_ENTRIES to VIDEO_QUALITY_ENTRY_LABELS,
+            VIDEO_QUALITY_ARRAY_VALUES to VIDEO_QUALITY_ENTRY_VALUES,
         )
         for ((name, items) in arrays) {
+            if (name in existingNames) {
+                continue
+            }
             val array = root.ownerDocument.createElement("string-array")
             array.setAttribute("name", name)
             for (item in items) {

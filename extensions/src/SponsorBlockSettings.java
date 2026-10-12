@@ -6,27 +6,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * SponsorBlock configuration: the patch's baked-in defaults, overridden by whatever
- * the user changed in the in-app "Patch settings" panel.
+ * SponsorBlock configuration: the patch's baked-in defaults, overridden by whatever the user
+ * changed in the in-app "Patch settings" panel.
  *
- * The patch options are still the source of the defaults (API base, one behaviour per
- * category), written into the injected {@code const-string} pair at
- * Application.onCreate and parsed once. {@link #initContext(Context)} then layers the
- * user's own choices on top from SharedPreferences, so a change in the panel takes
- * effect on the next video without a rebuild. Anything unparsable falls back to the
- * documented defaults with a log line, never an exception into the app.
+ * <p>The patch options are still the source of the defaults (API base, one behaviour per category),
+ * written into the injected {@code const-string} pair at Application.onCreate and parsed once.
+ * {@link #initContext(Context)} then layers the user's own choices on top from SharedPreferences,
+ * so a change in the panel takes effect on the next video without a rebuild. Anything unparsable
+ * falls back to the documented defaults with a log line, never an exception into the app.
  *
- * Behaviours are the phone patch's five, with one mapping: {@code skip},
- * {@code skip-once}, {@code seekbar-only} and {@code ignore} are implemented as
- * themselves, and {@code manual-skip} ("Show a Skip button") is stored as
- * {@code seekbar-only} because this client has no skip button to show. That is not a
- * loss of intent -- both mean "do not seek for me, just show me where it is" -- it is
- * the closest this player can get to the phone behaviour, and it is what the four of
+ * <p>Behaviours are the phone patch's five, with one mapping: {@code skip}, {@code skip-once},
+ * {@code seekbar-only} and {@code ignore} are implemented as themselves, and {@code manual-skip}
+ * ("Show a Skip button") is stored as {@code seekbar-only} because this client has no skip button
+ * to show. That is not a loss of intent -- both mean "do not seek for me, just show me where it is"
+ * -- it is the closest this player can get to the phone behaviour, and it is what the four of
  * upstream's ten category defaults that use {@code manual-skip} become here.
  *
- * The distinction that matters is therefore {@link #autoSkips}: only {@code skip} and
- * {@code skip-once} move the playhead. Any gate that asks "is this not ignore?" would
- * wrongly auto-skip a {@code seekbar-only} segment, so the gates ask this instead.
+ * <p>The distinction that matters is therefore {@link #autoSkips}: only {@code skip} and {@code
+ * skip-once} move the playhead. Any gate that asks "is this not ignore?" would wrongly auto-skip a
+ * {@code seekbar-only} segment, so the gates ask this instead.
  */
 public final class SponsorBlockSettings {
 
@@ -37,7 +35,9 @@ public final class SponsorBlockSettings {
 
     /** Keys of the rows this patch adds to the app's own settings screen. */
     private static final String KEY_MOD_ENABLED = "ytvr_mod_sb_enabled";
+
     private static final String KEY_MOD_MARKERS = "ytvr_mod_sb_markers";
+
     /**
      * The behaviour pickers' key prefix, and the prefix the per-category switches used before them.
      * They are different on purpose: a `ListPreference` reads its key with `getString`, and
@@ -46,10 +46,13 @@ public final class SponsorBlockSettings {
      * values are migrated into the new keys at start-up (see {@link #migrateLegacySwitches}).
      */
     private static final String KEY_CATEGORY = "ytvr_mod_sb_behaviour_";
+
     private static final String KEY_LEGACY_CATEGORY = "ytvr_mod_cat_";
     private static final String KEY_SKIP_ONCE = "ytvr_mod_sb_skip_once";
+
     /** The minimum-segment-duration row's key (a SeekBarPreference, so an int). */
     private static final String KEY_MIN_DURATION = "ytvr_mod_sb_min_duration";
+
     /**
      * The switch keys as (key, title), only for the start-up log: it says which categories the
      * screen has switched on, which is otherwise invisible without a screenshot.
@@ -63,24 +66,29 @@ public final class SponsorBlockSettings {
     private static final Map<String, String> BEHAVIOURS = new HashMap<String, String>();
     private static volatile boolean configured;
     private static volatile boolean enabled = true;
+
     /** The seek-bar markers, which are this port's own addition, not the phone patch's. */
     private static volatile boolean markersEnabled = true;
+
     private static volatile Context context;
-    /** True once {@link #initContext} has finished its migrations: the dump reports their result. */
+
+    /**
+     * True once {@link #initContext} has finished its migrations: the dump reports their result.
+     */
     private static volatile boolean storeReady;
+
     /** True once the start-up dump has actually been printed, so a later gate cannot repeat it. */
     private static volatile boolean dumpLogged;
 
-    private SponsorBlockSettings() {
-    }
+    private SponsorBlockSettings() {}
 
     /**
-     * Called once at Application.onCreate from a patch-injected invoke-static, with
-     * the option values baked into the dex as string constants.
+     * Called once at Application.onCreate from a patch-injected invoke-static, with the option
+     * values baked into the dex as string constants.
      *
-     * @param apiBase          e.g. https://sponsor.ajay.app (a self-hosted instance works)
-     * @param packedCategories {@code category=behaviour} pairs joined by {@code ;},
-     *                         e.g. {@code sponsor=skip-once;selfpromo=skip;...}
+     * @param apiBase e.g. https://sponsor.ajay.app (a self-hosted instance works)
+     * @param packedCategories {@code category=behaviour} pairs joined by {@code ;}, e.g. {@code
+     *     sponsor=skip-once;selfpromo=skip;...}
      */
     public static void configure(String apiBase, String packedCategories) {
         try {
@@ -107,8 +115,12 @@ public final class SponsorBlockSettings {
                         if (isBehaviour(behaviour)) {
                             BEHAVIOURS.put(category, normaliseBehaviour(behaviour));
                         } else {
-                            log("ignoring category '" + category + "': unknown behaviour '"
-                                + behaviour + "'");
+                            log(
+                                    "ignoring category '"
+                                            + category
+                                            + "': unknown behaviour '"
+                                            + behaviour
+                                            + "'");
                         }
                     }
                 }
@@ -123,7 +135,8 @@ public final class SponsorBlockSettings {
     /**
      * The behaviour for a category: one of "skip", "skip-once", "seekbar-only" or "ignore".
      *
-     * Three sources, in this order, because the screen has changed shape twice:
+     * <p>Three sources, in this order, because the screen has changed shape twice:
+     *
      * <ol>
      *   <li>the per-category **picker** (a `ListPreference`, so androidx persisted a String);
      *   <li>the older per-category **switch**, read together with the global "skip each segment
@@ -134,10 +147,10 @@ public final class SponsorBlockSettings {
      */
     public static String behaviour(String category) {
         return resolveBehaviour(
-            modString(KEY_CATEGORY + category),
-            modBoolean(KEY_LEGACY_CATEGORY + category),
-            modBoolean(KEY_SKIP_ONCE),
-            BEHAVIOURS.get(category));
+                modString(KEY_CATEGORY + category),
+                modBoolean(KEY_LEGACY_CATEGORY + category),
+                modBoolean(KEY_SKIP_ONCE),
+                BEHAVIOURS.get(category));
     }
 
     /**
@@ -146,11 +159,7 @@ public final class SponsorBlockSettings {
      * fake-Context route does not work -- `android.jar`'s `ContextWrapper` constructor is a stub).
      */
     static String resolveBehaviour(
-        String picked,
-        Boolean legacySwitch,
-        Boolean legacyOnce,
-        String baked
-    ) {
+            String picked, Boolean legacySwitch, Boolean legacyOnce, String baked) {
         if (picked != null && isBehaviour(picked)) {
             return normaliseBehaviour(picked);
         }
@@ -187,12 +196,13 @@ public final class SponsorBlockSettings {
      * Records the "Verbose logging" row's choice, in the same file and under the same key the gate
      * reads.
      *
-     * The row is written *here* rather than by its own `SwitchPreference`, because that is the one
-     * path the gate is guaranteed to see: measured on the device, a plain androidx switch on these
-     * screens flips to ON while `ytvr_mod_verbose_logging` never appears in this file at all -- the
-     * extension printed `patch settings (...): the screen's switches are not there yet` on a build
-     * whose row read ON, across an update install that preserved app data. {@link CategoryRows} owns
-     * the row and calls this on a tap, which is also what the behaviour pickers already do.
+     * <p>The row is written *here* rather than by its own `SwitchPreference`, because that is the
+     * one path the gate is guaranteed to see: measured on the device, a plain androidx switch on
+     * these screens flips to ON while `ytvr_mod_verbose_logging` never appears in this file at all
+     * -- the extension printed `patch settings (...): the screen's switches are not there yet` on a
+     * build whose row read ON, across an update install that preserved app data. {@link
+     * CategoryRows} owns the row and calls this on a tap, which is also what the behaviour pickers
+     * already do.
      */
     static void setVerboseLogging(boolean on) {
         try {
@@ -214,7 +224,7 @@ public final class SponsorBlockSettings {
      * The baked defaults moved from this port's first set (five categories auto-skipping) to
      * upstream's map, where only sponsor skips by itself.
      *
-     * A row the viewer has already chosen keeps its value -- but androidx *persisted* the old
+     * <p>A row the viewer has already chosen keeps its value -- but androidx *persisted* the old
      * default into the pref file the first time the screen was opened, so every untouched row is
      * indistinguishable from a deliberate choice. Without this step the new defaults would never be
      * seen by anyone who had opened the screen. A stored value that still equals the old default is
@@ -248,8 +258,12 @@ public final class SponsorBlockSettings {
                     editor = mod.edit();
                 }
                 editor.putString(key, move[2]);
-                moved.append(' ').append(move[0]).append(' ').append(move[1])
-                    .append(" -> ").append(move[2]);
+                moved.append(' ')
+                        .append(move[0])
+                        .append(' ')
+                        .append(move[1])
+                        .append(" -> ")
+                        .append(move[2]);
             }
             if (editor != null) {
                 editor.apply();
@@ -261,8 +275,8 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * Segments shorter than this are ignored (0 = keep everything). Highlight is exempt, as upstream
-     * exempts it. The row is a `SeekBarPreference`, so androidx persisted an int.
+     * Segments shorter than this are ignored (0 = keep everything). Highlight is exempt, as
+     * upstream exempts it. The row is a `SeekBarPreference`, so androidx persisted an int.
      */
     public static long minSegmentDurationMs() {
         Integer seconds = modInt(KEY_MIN_DURATION);
@@ -319,12 +333,13 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * The file the settings screens persist to. Measured 2026-10-11: the screens' fragment sets
-     * its preference storage name to "youtube" before inflating (fyp's `g("youtube")`), so every
-     * widget row this patch adds commits there — the same file this extension must read and write.
-     * Earlier builds read `<package>_preferences`, a file nothing ever wrote.
+     * The file the settings screens persist to. Measured 2026-10-11: the screens' fragment sets its
+     * preference storage name to "youtube" before inflating (fyp's `g("youtube")`), so every widget
+     * row this patch adds commits there — the same file this extension must read and write. Earlier
+     * builds read `<package>_preferences`, a file nothing ever wrote. Package-private so the
+     * Default video quality extension reads the same file (VideoQuality.java).
      */
-    private static SharedPreferences modPreferences() {
+    static SharedPreferences modPreferences() {
         return modPreferences(context);
     }
 
@@ -369,7 +384,7 @@ public final class SponsorBlockSettings {
     /**
      * Prints the start-up dump unless it has already been printed, and only with the gate open.
      *
-     * Called at the end of {@link #initContext} and from {@link VerboseLog} every time its gate
+     * <p>Called at the end of {@link #initContext} and from {@link VerboseLog} every time its gate
      * opens, because the two injected calls at Application.onCreate come from two different patches
      * and either may run first. In 1.88.10 the order inside the method is the SponsorBlock block
      * (configure, initContext) and *then* the Extension block (the diagnostics default, init), so a
@@ -388,10 +403,10 @@ public final class SponsorBlockSettings {
      * Writes the old per-category switches into the behaviour keys, once, for any category that has
      * no picker value yet.
      *
-     * Reading the old switches would not be enough: a `ListPreference` *persists* its own default
-     * the first time the screen is bound, so a user who had switched a category off would have that
-     * choice silently replaced by the build's default the moment they opened the screen. Migrating
-     * first means the picker finds -- and displays -- what they actually chose.
+     * <p>Reading the old switches would not be enough: a `ListPreference` *persists* its own
+     * default the first time the screen is bound, so a user who had switched a category off would
+     * have that choice silently replaced by the build's default the moment they opened the screen.
+     * Migrating first means the picker finds -- and displays -- what they actually chose.
      */
     private static void migrateLegacySwitches() {
         SharedPreferences mod = modPreferences();
@@ -411,8 +426,10 @@ public final class SponsorBlockSettings {
             if (editor == null) {
                 editor = mod.edit();
             }
-            editor.putString(key, resolveBehaviour(
-                null, legacy, modBoolean(KEY_SKIP_ONCE), BEHAVIOURS.get(category[0])));
+            editor.putString(
+                    key,
+                    resolveBehaviour(
+                            null, legacy, modBoolean(KEY_SKIP_ONCE), BEHAVIOURS.get(category[0])));
         }
         if (editor != null) {
             editor.apply();
@@ -454,8 +471,11 @@ public final class SponsorBlockSettings {
                 if (value != null && value) {
                     enabled_categories++;
                 }
-                effective.append(' ').append(category[0]).append('=')
-                    .append(behaviour(category[0]));
+                effective
+                        .append(' ')
+                        .append(category[0])
+                        .append('=')
+                        .append(behaviour(category[0]));
             }
             text.append(", ").append(enabled_categories).append(" switch(es) on");
             // The effective behaviours, which is what the player will actually do -- the one line
@@ -464,16 +484,25 @@ public final class SponsorBlockSettings {
             log(text.toString());
             // The raw stored picker values, next to the effective ones: the two differ whenever a
             // row has no stored value yet (the baked default shows through), and a row whose
-            // displayed subtitle disagrees with this line is a rendering question, not a settings one.
+            // displayed subtitle disagrees with this line is a rendering question, not a settings
+            // one.
             StringBuilder stored = new StringBuilder();
             for (String[] category : CATEGORY_KEYS) {
-                stored.append(' ').append(category[0]).append('=')
-                    .append(modString(KEY_CATEGORY + category[0]) == null
-                        ? "(none)" : modString(KEY_CATEGORY + category[0]));
+                stored.append(' ')
+                        .append(category[0])
+                        .append('=')
+                        .append(
+                                modString(KEY_CATEGORY + category[0]) == null
+                                        ? "(none)"
+                                        : modString(KEY_CATEGORY + category[0]));
             }
             log("stored picker values:" + stored);
-            log("stats: " + SponsorBlockStats.sessionSummary()
-                + "; minimum segment duration: " + (minSegmentDurationMs() / 1000L) + "s");
+            log(
+                    "stats: "
+                            + SponsorBlockStats.sessionSummary()
+                            + "; minimum segment duration: "
+                            + (minSegmentDurationMs() / 1000L)
+                            + "s");
         } catch (Throwable t) {
             log("patch settings log failed: " + t);
         }
@@ -504,9 +533,9 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * Whether this behaviour seeks past the segment. The one predicate every skip gate
-     * must use: `seekbar-only` is a live segment that is drawn and never skipped, so
-     * "not ignore" is the wrong test.
+     * Whether this behaviour seeks past the segment. The one predicate every skip gate must use:
+     * `seekbar-only` is a live segment that is drawn and never skipped, so "not ignore" is the
+     * wrong test.
      */
     public static boolean autoSkips(String behaviour) {
         return "skip".equals(behaviour) || "skip-once".equals(behaviour);
@@ -527,16 +556,18 @@ public final class SponsorBlockSettings {
     }
 
     private static boolean isBehaviour(String value) {
-        return "skip".equals(value) || "skip-once".equals(value)
-            || "seekbar-only".equals(value) || "manual-skip".equals(value)
-            || "ignore".equals(value);
+        return "skip".equals(value)
+                || "skip-once".equals(value)
+                || "seekbar-only".equals(value)
+                || "manual-skip".equals(value)
+                || "ignore".equals(value);
     }
 
     /**
-     * The behaviour this client can actually run. Only `manual-skip` changes meaning: it
-     * asks for a Skip button, this player has none, so it becomes the behaviour that
-     * shows the segment without moving the playhead -- which is what a viewer who would
-     * have pressed that button wants anyway.
+     * The behaviour this client can actually run. Only `manual-skip` changes meaning: it asks for a
+     * Skip button, this player has none, so it becomes the behaviour that shows the segment without
+     * moving the playhead -- which is what a viewer who would have pressed that button wants
+     * anyway.
      */
     private static String normaliseBehaviour(String value) {
         return "manual-skip".equals(value) ? "seekbar-only" : value;

@@ -150,6 +150,20 @@ immersive card itself cannot be named: its label is that app-manager record, and
 writes or is consulted for it is signature-guarded (`prot=signature|preinstalled|knownSigner`) — see
 [docs/APP-NAME-CARD.md](docs/APP-NAME-CARD.md).
 
+### Default video quality (start every video at one resolution)
+
+The **Default video quality** patch starts every video at one resolution instead of the app's own
+per-video choice, which drifts downward over a session. The requested resolution is a *ceiling*:
+a video that does not have it plays at that video's highest available format, so the default —
+**Highest available** — means 8K on the videos that have it (the stream spoof supplies the 8K
+format) and otherwise simply the best there is. Pick a fixed value (2160p, 1080p Full HD, …) and
+every video uses it.
+
+The setting lives on the **Patch settings** hub — **Default video quality** — and applies to the
+next video without a rebuild. The Manager patch option of the same name only *seeds* the headset
+setting on first launch; the headset row governs from the first change there. **Auto** hands the
+choice back to the app.
+
 ### SponsorBlock (skip sponsors, self-promos, intros, ...)
 
 The **SponsorBlock** patch automatically skips crowd-sourced segments from

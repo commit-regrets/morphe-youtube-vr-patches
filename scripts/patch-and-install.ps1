@@ -92,6 +92,7 @@ param(
     # stitched ads, Disable QUIC) are not listed. Override with -RequirePatches.
     [string[]] $RequirePatches = @(
         'App name',
+        'Default video quality',
         'Disable DRC audio',
         'Extension',
         'Hide ads',
