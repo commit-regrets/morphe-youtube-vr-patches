@@ -14,7 +14,15 @@ to the wrong app.
 So "YouTube VR APK" searches land on the Daydream build, which is not what the patches match.
 Check the package name before anything else.
 
-## Route A — pull it off your own headset (recommended)
+## Route A — extract from your own headset (recommended)
+
+### 1. On-device APK backup tool (easiest)
+
+If you use an on-device utility such as **Quest Games Optimizer (QGO)**, you can back up the
+installed YouTube VR APK directly to the headset's storage. This requires no PC or USB cable, making
+it the easiest route — especially if you are patching directly on the Quest using Morphe Manager.
+
+### 2. Pull via ADB
 
 Install YouTube VR from the Quest Store (it is free), connect adb, then:
 
