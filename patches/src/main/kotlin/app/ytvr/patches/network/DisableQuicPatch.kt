@@ -51,17 +51,19 @@ private val cronetEngineBuilderFingerprint = Fingerprint(
         literal(1),
         methodCall(
             smali = "Lorg/chromium/net/ExperimentalCronetEngine\$Builder;->enableQuic(Z)Lorg/chromium/net/ExperimentalCronetEngine\$Builder;",
-            location = MatchAfterImmediately()
+            location = MatchAfterImmediately(),
         ),
-        opcode(Opcode.MOVE_RESULT_OBJECT, MatchAfterImmediately())
-    )
+        opcode(Opcode.MOVE_RESULT_OBJECT, MatchAfterImmediately()),
+    ),
 )
 
 @Suppress("unused")
 val disableQuicProtocolPatch = bytecodePatch(
     name = "Disable QUIC protocol",
-    description = "Adds an option to disable QUIC (Quick UDP Internet Connections) network protocol.",
-    default = false
+    description = "Adds an option (off by default) to disable QUIC (Quick UDP Internet " +
+        "Connections) network protocol; selecting the patch alone changes nothing until " +
+        "the option is enabled.",
+    default = false,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
