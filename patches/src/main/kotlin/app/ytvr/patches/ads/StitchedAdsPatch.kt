@@ -105,8 +105,9 @@ private val cuePointCallbackFingerprint = Fingerprint(
 val hideStitchedAdsPatch = bytecodePatch(
     name = "Hide stitched ads (SSAI)",
     description = "Removes the client side ad configuration and cue points for " +
-        "server-stitched (SSAI) streams. Does not remove the ad itself; off by default.",
-    default = false
+        "server-stitched (SSAI) streams. It does not remove the ad itself; keeping " +
+        "ads out is the Extension patch's streaming spoof. Off by default.",
+    default = false,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -122,7 +123,7 @@ val hideStitchedAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return-object v0
-            """
+            """,
         )
 
         stitchedDaiUriFingerprint.method.addInstructions(
@@ -132,7 +133,7 @@ val hideStitchedAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return-object v0
-            """
+            """,
         )
 
         stitchedDaiBreakFingerprint.method.addInstructions(
@@ -142,7 +143,7 @@ val hideStitchedAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return v0
-            """
+            """,
         )
 
         // Drop the ad cue point list delivered by the native player.
@@ -152,7 +153,7 @@ val hideStitchedAdsPatch = bytecodePatch(
                 const-string v0, "cuepointList"
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 return-void
-            """
+            """,
         )
     }
 }
