@@ -7,10 +7,10 @@ import app.morphe.patcher.patch.Compatibility
 /**
  * The preference key the app reads its version name from (`AppVersionOverride`).
  *
- * It is an anchor, not just a setting: the two patches that target that class find it by this
- * literal instead of by its obfuscated name -- the version spoof matches the accessors in the class
- * that holds it, and the osName spoof uses it to tell that class apart from the other
- * `Z(Context)` feature checks. Both live in this file so they cannot drift apart.
+ * It is an anchor, not just a setting: the version spoof finds its accessors by this literal
+ * instead of by the class's obfuscated name. (The retired osName spoof used it to tell that
+ * class apart from the other `Z(Context)` feature checks; that patch was removed 2026-10-12,
+ * see FINGERPRINTS.md for its measurement record.)
  */
 const val VERSION_NAME_OVERRIDE_KEY = "pref_override_build_version_name"
 
@@ -57,7 +57,7 @@ object Constants {
             AppTarget(
                 version = "1.88.10",
                 description = "Verified: every fingerprint was re-derived against this build.",
-            )
-        )
+            ),
+        ),
     )
 }

@@ -182,7 +182,7 @@ with jadx on that dex alone, which agreed):
 | target | anchor now | matches | was (app name) |
 |---|---|---|---|
 | `platypusEnable` ×2 (done earlier) | readable library class + `Z` + parameter count 2 / 3 | 1 each | obfuscated method names |
-| `SpoofOsName` automotive | `Z(Context)` + the class holds the version-name pref key + the body holds `android.hardware.type.automotive` | 1 | `Locn;` / `c` |
+| `SpoofOsName` automotive (**patch removed 2026-10-12**: measured to propagate but not to block ads, see its KDoc in git history) | `Z(Context)` + the class holds the version-name pref key + the body holds `android.hardware.type.automotive` | 1 | `Locn;` / `c` |
 | `SpoofAppVersion` name | `String(Context)` holding the pref key literal | 1 | already durable |
 | `SpoofAppVersion` code | `I(Context)` in the class holding that key | 1 | `Locn;` / `a` |
 | `SpoofUserAgentPackage` | `String` return + `" (Linux; U; Android "` + the `getPackageName()` call it rewrites | 1 | `Lagtm;` / `a` + full prototype |
