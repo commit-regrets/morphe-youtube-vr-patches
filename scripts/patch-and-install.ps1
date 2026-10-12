@@ -102,14 +102,12 @@ param(
         'Spoof package name in User-Agent'
     ),
 
-    # Opt-in patches to turn on for this run, for the patches that are off by default. SponsorBlock
-    # is one (`default = false`), and it is listed here by default because it is part of the app
-    # this repo installs: the patch also builds the **Patch settings** hub and the SponsorBlock
-    # settings screen, so a run that leaves it out silently removes both from the installed app --
-    # which is exactly what happened on 2026-10-11, when every rebuild used this script's defaults
-    # and the user lost the settings screens. It is in -RequirePatches too, so the omission fails
-    # the run instead of shipping again. Passing -ExtraPatches replaces this list, so name
-    # SponsorBlock alongside anything else you need. Its options keep their defaults.
+    # Opt-in patches to turn on for this run, for the patches that are off by default (Spoof
+    # osName, Hide stitched ads, Disable QUIC). SponsorBlock is `default = true` now, so the
+    # patcher selects it on its own; it stays in this list so a run against an older bundle
+    # still cannot silently drop the settings screens (which is exactly what happened on
+    # 2026-10-11). Passing -ExtraPatches replaces this list, so name SponsorBlock alongside
+    # anything else you need. Its options keep their defaults.
     [string[]] $ExtraPatches = @('SponsorBlock'),
 
     # Rename with the official bundle's universal "Clone app" instead of this bundle's
@@ -357,8 +355,8 @@ if (-not $NoClone -and -not $OfficialClone) {
     # attribute, with the official one winning, is the trap this script must not walk into.
     $disableStep1 += 'Install as clone'
 }
-# Opt-in patches (SponsorBlock) are named explicitly so the patcher turns them on; they are not
-# in -RequirePatches by default because they are not part of the standard build.
+# SponsorBlock is default-on in the bundle now, so the patcher selects it on its own; naming it
+# (or any opt-in patch) explicitly keeps a run working against older bundles too.
 foreach ($extra in $ExtraPatches) { $enableStep1 += $extra }
 # Naming the patches whose options are set is harmless (they are default-enabled anyway) and it
 # keeps the printed command readable now that the values live in the options file.

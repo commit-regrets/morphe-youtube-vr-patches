@@ -42,7 +42,7 @@ So after any fingerprint change, verify *which* method was modified:
    of the **one-parameter** constructor, not the two-parameter sibling. For `pqy`, the patch's own
    edit must be visible as `this.c = false;` (the `instance-of` replaced by `const/4`).
 
-   With **SponsorBlock** enabled (it is off by default, so default runs do not include this), the set
+   With **SponsorBlock** enabled (it is `default = true`, so default runs include it), the set
    gains exactly three classes, each explainable: `pwe` (the loadVideo/seek hooks + the three
    generated bridge methods), `pwd` (the onSeeked hook) and `ablw` (the seek-source enum: its clinit
    was matched to mine the constant, and the bridge references the field). The bridge bodies read
