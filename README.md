@@ -20,8 +20,9 @@ own copy of the YouTube VR APK. **The defaults are the recommended
 configuration** — the ad-free streaming spoof is on and the development
 diagnostics are off, so there is nothing to configure.
 
-Getting the APK is its own step — it has to come from your own headset:
-[docs/GETTING-THE-APK.md](docs/GETTING-THE-APK.md).
+Getting the APK is its own step — it has to come from your own headset. The easiest
+way is using an APK backup tool like **Quest Games Optimizer** directly on the device,
+or pulling it via `adb`: see [docs/GETTING-THE-APK.md](docs/GETTING-THE-APK.md).
 
 Supported app versions:
 
