@@ -58,15 +58,17 @@ private val automotiveDeviceFingerprint = Fingerprint(
  * `cff=LARGE_FORM_FACTOR` to `cff=AUTOMOTIVE_FORM_FACTOR`, so Google received the
  * Automotive device class — and the ad played anyway. This is the phone patch
  * set's own ad-blocking mechanism, so its ineffectiveness here (where the ad is
- * stitched into the SABR stream) is a decisive negative: do not re-try it. See
- * See the patch sources for what was measured.
+ * stitched into the SABR stream) is a decisive negative: do not re-try it. See the
+ * patch sources for what was measured.
  */
 @Suppress("unused")
 val spoofOsNamePatch = bytecodePatch(
     name = "Spoof osName (Android Automotive)",
     description = "Reports the app as an Android Automotive device, the way the " +
-        "phone patch set blocks video ads.",
-    default = false
+        "phone patch set blocks video ads. Measured on VR: it does not block ads " +
+        "there (the pre-roll is stitched into the SABR stream server-side; ad removal " +
+        "is the Extension patch's stream spoof). Experimental; off by default.",
+    default = false,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -76,7 +78,7 @@ val spoofOsNamePatch = bytecodePatch(
             """
                 const/4 v0, 0x1
                 return v0
-            """
+            """,
         )
     }
 }
