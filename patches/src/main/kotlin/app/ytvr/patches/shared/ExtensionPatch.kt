@@ -459,6 +459,18 @@ val extensionPatch = bytecodePatch(
         title = "Verbose diagnostics (development only)",
     )
 
+    // For local test builds: log from the first line and *ignore* the "Verbose logging" row's
+    // stored value, which is otherwise the winner (it is sticky across `adb install -r`, so a
+    // device that once had the row switched off stays silent even in a diagnostics build -- the
+    // gate's default only loses to a stored value, by design). Kept separate from
+    // enableDiagnostics on purpose: this installs no extra hooks and makes no probe request, so the
+    // everyday "build it and watch the log" loop costs nothing but the lines themselves.
+    val forceVerboseLogging by booleanOption(
+        key = "forceVerboseLogging",
+        default = false,
+        title = "Force verbose logging (development builds)",
+    )
+
     // One-shot identity matrix: fetches two videos under several candidate identities plus an
     // ANDROID_VR control and logs the max format height of each, to find which context field
     // unlocks 8K. It costs ~14 *unauthenticated* requests per app start, which is the kind of
@@ -540,20 +552,28 @@ val extensionPatch = bytecodePatch(
         // and why the settings store re-emits its dump when the gate opens. Nothing depends on
         // that order: `VerboseLog` is idempotent and re-reads, and the dump is printed once,
         // whichever of the two calls opens the gate.
-        fun injectLogGate() = applicationOnCreateFingerprint.method.addInstructions(
-            0,
+        //
+        // `forceVerboseLogging` goes *in* the block before `init`, because it is the one thing that
+        // must beat the row's stored value rather than sit under it: a local test build on a device
+        // whose "Verbose logging" row was switched off once would otherwise stay silent. `init`
+        // consults that flag too, so the order inside the block is about the listing it prints, not
+        // about whether the gate ends up open.
+        fun injectLogGate() {
+            val gate = mutableListOf<String>()
             if (enableDiagnostics == true) {
-                """
-                    const/4 v0, 0x1
-                    invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->setDefaultEnabled(Z)V
-                    invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
-                """.trimIndent()
-            } else {
-                """
-                    invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
-                """.trimIndent()
-            },
-        )
+                gate += "const/4 v0, 0x1"
+                gate += "invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->setDefaultEnabled(Z)V"
+            }
+            if (forceVerboseLogging == true) {
+                // Before `init`, deliberately: `init` consults the same flag, so the gate is open
+                // either way, and going first also makes its development-build listing of the
+                // preference files and the files holding the `ytvr_mod` keys run.
+                gate += "const/4 v0, 0x1"
+                gate += "invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->forceEnabled(Z)V"
+            }
+            gate += "invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V"
+            applicationOnCreateFingerprint.method.addInstructions(0, gate.joinToString("\n"))
+        }
 
         // Give the app a task label. Horizon OS's library names a *running* app from the store's
         // record for its package; a re-signed, renamed build has none, and the fallback is the

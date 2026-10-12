@@ -71,6 +71,12 @@ param(
     # docs/INTERNALS.md ("Verifying a change").
     [switch] $Diagnostics,
 
+    # Log from the app's first line and IGNORE the "Verbose logging" row's stored value. This is
+    # the switch a local test build wants: unlike -Diagnostics it sets no extra hooks and makes no
+    # probe request, and unlike the row's own default it also wins over a stored value (the row is
+    # sticky across `adb install -r`, so a device that once had it off stays silent otherwise).
+    [switch] $VerboseLogging,
+
     # Run the one-shot identity-matrix probe at app start (development only). It costs ~14
     # *unauthenticated* requests per launch, which is the traffic that gets an IP's
     # unauthenticated innertube requests refused, so the patch additionally requires
@@ -336,6 +342,7 @@ $disableStep1 = @()
 $extensionOptions = @{}
 if ($NoSpoof) { $extensionOptions['enableStreamSpoof'] = $false }
 if ($Diagnostics) { $extensionOptions['enableDiagnostics'] = $true }
+if ($VerboseLogging) { $extensionOptions['forceVerboseLogging'] = $true }
 if ($IdentityProbe) { $extensionOptions['enableIdentityMatrix'] = $true }
 if ($NativeFormats) { $extensionOptions['enableNativeFormats'] = $true }
 if ($extensionOptions.Count -gt 0) {
@@ -371,10 +378,11 @@ Assert-RequiredPatches $result1 $required1 'our patches'
 
 $spoof = Get-OptionValue $result1 'Extension' 'enableStreamSpoof'
 $diagnostics = Get-OptionValue $result1 'Extension' 'enableDiagnostics'
+$forceLog = Get-OptionValue $result1 'Extension' 'forceVerboseLogging'
 $identity = Get-OptionValue $result1 'Extension' 'enableIdentityMatrix'
 $native = Get-OptionValue $result1 'Extension' 'enableNativeFormats'
 $name = Get-OptionValue $result1 'App name' 'appName'
-Write-Host "   enableStreamSpoof=$spoof (ad-free requires true), enableDiagnostics=$diagnostics, enableIdentityMatrix=$identity, enableNativeFormats=$native"
+Write-Host "   enableStreamSpoof=$spoof (ad-free requires true), enableDiagnostics=$diagnostics, forceVerboseLogging=$forceLog, enableIdentityMatrix=$identity, enableNativeFormats=$native"
 Write-Host "   app name = '$name'"
 # The options file should make a dropped option impossible, but the failure it guards against is
 # silent (a patched app that is not the app that was asked for), so assert the effective values.
@@ -389,6 +397,9 @@ if ($AppName -and "$name" -ne $AppName) {
 }
 if ($Diagnostics -and "$diagnostics" -ne 'true') {
     Fail "enableDiagnostics did not take true (effective '$diagnostics')"
+}
+if ($VerboseLogging -and "$forceLog" -ne 'true') {
+    Fail "forceVerboseLogging did not take true (effective '$forceLog')"
 }
 if ($IdentityProbe -and "$identity" -ne 'true') {
     Fail "enableIdentityMatrix did not take true (effective '$identity')"
