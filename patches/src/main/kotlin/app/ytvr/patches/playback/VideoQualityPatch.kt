@@ -24,11 +24,25 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 private const val FIXED_RESOLUTION_STRING = ", initialPlaybackVideoQualityFixedResolution="
 private const val EXTENSION_CLASS = "Lapp/ytvr/extension/VideoQuality;"
 
-/** The build option's default, also the hub row's XML default: "Highest available". */
-private const val DEFAULT_QUALITY = "4320"
+/** The build option's default, also what the hub row shows until the viewer changes it. */
+private const val DEFAULT_QUALITY = "highest"
 
-/** The passthrough seed the extension treats as "keep the app's own per-video choice". */
-private const val AUTO_SEED = -2
+/**
+ * The field's own type, and the reason the injected call ends in a `check-cast`: the extension's
+ * method crosses as `(Ljava/lang/Object;)Ljava/lang/Object;`, and ART's verifier rejects a store of
+ * an untyped `Object` into this field with
+ *
+ * ```
+ * VerifyError: Verifier rejected class saj: void saj.<init>(... j$.util.Optional, j$.util.Optional,
+ * int, j$.util.Optional, sly) failed to verify: [0x19] register v6 has type Reference:
+ * java.lang.Object but expected Precise Reference: j$.util.Optional
+ * ```
+ *
+ * which crashed the app the moment a video started (measured 2026-10-13, `sij.a` -> `saj.<init>`
+ * on the main thread). The cast is a verifier hint, not a runtime conversion: the extension returns
+ * exactly this type.
+ */
+private const val OPTIONAL_TYPE = "Lj\$/util/Optional;"
 
 /** Matches the player's PlaybackStartParameters by the one string its toString is built from. */
 private val playbackStartParametersToString = Fingerprint(
@@ -57,14 +71,19 @@ private val playbackStartParametersToString = Fingerprint(
  *
  * The requested resolution is a ceiling, not an exact match: a video that does not have it plays
  * at its highest available format (the behaviour the phone patch documents), which is what makes
- * the default 4320 mean "Highest available" -- 8K included, because the stream spoof's injected
- * format list carries itag 702 (the Extension patch's 8K option accepts it).
+ * "Highest available" and "8K (4320p)" the same ceiling today -- nothing taller than 4320 is served
+ * -- while the viewer still sees the entry they picked. 8K arrives through the stream spoof's
+ * injected format list, which carries itag 702 (the Extension patch's 8K option accepts it).
  *
  * The extension call, not the injected bytecode, decides the value: the setting lives on the
  * Patch settings hub (`ytvr_mod_video_quality` in youtube.xml, built by the SponsorBlock patch's
  * settings restructure) and can change without a rebuild, so the build option only seeds it (see
- * VideoQuality.configure). The Optional crosses as an opaque Object because j$.util.Optional is
- * desugared into the app but absent from the extension's compile classpath.
+ * VideoQuality.configure). The row's picker is the extension's own in-row list (CategoryRows), not
+ * a `ListPreference` dialog -- measured: this app's preference adapter dispatches a row click
+ * itself and does nothing for a row type it does not know, and androidx's dialog is never
+ * composited into the VR panel, so a `ListPreference` row reads as "tapping it opens nothing"
+ * (2026-10-13). The Optional crosses as an opaque Object because j$.util.Optional is desugared into
+ * the app but absent from the extension's compile classpath.
  *
  * Not ported (yet): remembering a manual quality change. The VR notification path is measured
  * (`pwd.x`, logging "onVideoQualitySettingChange"), and the phone patch's per-network
@@ -85,8 +104,9 @@ val videoQualityPatch = bytecodePatch(
         key = "videoQuality",
         default = DEFAULT_QUALITY,
         values = mapOf(
-            "4320" to "Highest available (8K when present)",
-            "2160" to "2160p (4K)",
+            "highest" to "Highest available (the video's best, 8K included)",
+            "4320" to "8K (4320p)",
+            "2160" to "4K (2160p)",
             "1440" to "1440p",
             "1080" to "1080p (Full HD)",
             "720" to "720p HD",
@@ -101,16 +121,16 @@ val videoQualityPatch = bytecodePatch(
 
     execute {
         val configured = videoQuality ?: DEFAULT_QUALITY
-        val seed = if (configured == "auto") AUTO_SEED else configured.toInt()
 
         // The seed rides Application.onCreate like the SponsorBlock option's configure call, and
         // the extension writes it through to the setting on first read, so the hub row displays
-        // the build option instead of persisting its own XML default over it.
+        // the build option instead of its own fallback. It crosses as a String, not a height, so
+        // that "highest" survives the round trip and the row can show the option that was chosen.
         applicationOnCreateFingerprint.method.addInstructions(
             0,
             """
-                const/16 v0, $seed
-                sput v0, $EXTENSION_CLASS->buildDefaultHeight:I
+                const-string v0, "$configured"
+                sput-object v0, $EXTENSION_CLASS->buildDefault:Ljava/lang/String;
             """,
         )
 
@@ -193,6 +213,7 @@ val videoQualityPatch = bytecodePatch(
             """
                 invoke-static { v$register }, $EXTENSION_CLASS->fixInitialResolution(Ljava/lang/Object;)Ljava/lang/Object;
                 move-result-object v$register
+                check-cast v$register, $OPTIONAL_TYPE
             """,
         )
     }

@@ -282,17 +282,24 @@ private const val MAIN_ROW_TITLE = "Patch settings"
  * one setting that is not a feature. The root element (and with it the resource id and the
  * inflation path) stays the app's own.
  *
- * Idempotence is by *every* row's key: a decode reused from an earlier revision of this patch has
- * the older row set, and requiring the whole set means such a tree is cleared and rewritten rather
- * than being left one row short.
+ * Idempotence is by *every* row's key **and** the quality row's shape: a decode reused from an
+ * earlier revision of this patch has the older row set -- and, for the quality row, the older
+ * `ListPreference` widget -- so requiring the whole set *and* a plain `Preference` there means such
+ * a tree is cleared and rewritten rather than being left one row short or with an inert row.
  */
 private fun fillHubScreen(xml: File) = editXml(xml) { root ->
-    val present = root.getElementsByTagName("*").let { nodes ->
-        (0 until nodes.length).mapNotNull { index ->
-            (nodes.item(index) as? Element)?.getAttribute("android:key")
-        }
+    val rows = root.getElementsByTagName("*").let { nodes ->
+        (0 until nodes.length).mapNotNull { index -> nodes.item(index) as? Element }
+    }
+    val present = rows.mapNotNull { row ->
+        row.getAttribute("android:key").takeIf { key -> key.isNotEmpty() }
     }.toSet()
-    if (HUB_ROW_KEYS.all { it in present }) {
+    val qualityRowIsPlain = rows.any { row ->
+        row.getAttribute("android:key") == VIDEO_QUALITY_KEY &&
+            row.tagName == PLAIN &&
+            !row.hasAttribute("android:entries")
+    }
+    if (HUB_ROW_KEYS.all { it in present } && qualityRowIsPlain) {
         return@editXml
     }
     while (root.firstChild != null) {
@@ -320,13 +327,21 @@ private const val VERBOSE_LOGGING_TITLE = "Verbose logging"
 /**
  * The hub's "Default video quality" row: the resolution every video starts at, read at runtime by
  * the extension the Default video quality patch injects. The patch's build option seeds the value
- * on first launch; this row's XML default is only what the picker shows if that seed never ran.
+ * on first launch, and the extension's own row UI paints the current choice under the name --
+ * [VIDEO_QUALITY_SUMMARY] is only what shows before that runs.
+ *
+ * **A plain `Preference`, never a `ListPreference`.** Measured on the device, twice over: this app
+ * replaces androidx's preference adapter with its own and that adapter dispatches a row click
+ * itself, doing nothing for a row type it does not know, and androidx's `ListPreference` picker is
+ * an `AlertDialog`, which is never composited into the VR panel. Either one reads exactly like the
+ * bug report this replaced -- the row is there, tapping it opens nothing (2026-10-13). The options
+ * live in the extension, which builds the picker *inside* the row, the same way the behaviour
+ * pickers work (see `CategoryRows`), and that is also why no `entries`/`entryValues` arrays are
+ * written for this row any more.
  */
 private const val VIDEO_QUALITY_KEY = "ytvr_mod_video_quality"
 private const val VIDEO_QUALITY_TITLE = "Default video quality"
-private const val VIDEO_QUALITY_DEFAULT = "4320"
-private const val VIDEO_QUALITY_ARRAY_ENTRIES = "ytvr_vq_entries"
-private const val VIDEO_QUALITY_ARRAY_VALUES = "ytvr_vq_values"
+private const val VIDEO_QUALITY_SUMMARY = "Highest available"
 
 /**
  * The hub's rows: the feature entries, the video quality picker, then the diagnostic switch. The
@@ -341,18 +356,12 @@ private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
         "android:title" to "SponsorBlock",
         "android:summary" to "Skips crowd-sourced sponsor segments automatically",
     ),
-    LIST to listOf(
+    PLAIN to listOf(
         "android:key" to VIDEO_QUALITY_KEY,
         "android:title" to VIDEO_QUALITY_TITLE,
-        "android:defaultValue" to VIDEO_QUALITY_DEFAULT,
-        // Full `@type/name` form, deliberately: an unqualified `@ytvr_vq_entries` is stored as a
-        // raw string by the resource encoder and the reference resolves to 0 at runtime, which
-        // crashes the hub's inflation with Resources$NotFoundException (verified on device).
-        "android:entries" to "@array/$VIDEO_QUALITY_ARRAY_ENTRIES",
-        "android:entryValues" to "@array/$VIDEO_QUALITY_ARRAY_VALUES",
-        // ListPreference replaces %s with the selected entry, so the row itself says what it
-        // currently does -- the same subtitle shape the category pickers use.
-        "android:summary" to "%s",
+        // No `android:defaultValue`: a plain `Preference` does not persist one, and the extension
+        // seeds the setting from the build option on its first read anyway.
+        "android:summary" to VIDEO_QUALITY_SUMMARY,
     ),
     SWITCH to listOf(
         "android:key" to VERBOSE_LOGGING_KEY,
@@ -437,19 +446,6 @@ private val BEHAVIOUR_ENTRY_LABELS = listOf(
     "Disable",
 )
 private val BEHAVIOUR_ENTRY_VALUES = listOf("skip", "skip-once", "seekbar-only", "ignore")
-
-/** The video quality picker's options, in the order the dialog shows them. */
-private val VIDEO_QUALITY_ENTRY_LABELS = listOf(
-    "Highest available",
-    "2160p (4K)",
-    "1440p",
-    "1080p (Full HD)",
-    "720p HD",
-    "480p",
-    "360p",
-    "Auto (per video)",
-)
-private val VIDEO_QUALITY_ENTRY_VALUES = listOf("4320", "2160", "1440", "1080", "720", "480", "360", "auto")
 
 /**
  * Highlight is "the part most people are looking for", not a stretch to skip past, and upstream
@@ -605,8 +601,6 @@ private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, St
             "ytvr_sb_behaviour_values" to BEHAVIOUR_ENTRY_VALUES,
             "ytvr_sb_highlight_entries" to HIGHLIGHT_ENTRY_LABELS,
             "ytvr_sb_highlight_values" to HIGHLIGHT_ENTRY_VALUES,
-            VIDEO_QUALITY_ARRAY_ENTRIES to VIDEO_QUALITY_ENTRY_LABELS,
-            VIDEO_QUALITY_ARRAY_VALUES to VIDEO_QUALITY_ENTRY_VALUES,
         )
         for ((name, items) in arrays) {
             if (name in existingNames) {
