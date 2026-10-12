@@ -26,6 +26,15 @@ object Constants {
     val COMPATIBILITY_YOUTUBE_VR = Compatibility(
         name = "YouTube VR", // App name as it appears in the Android launcher.
         packageName = "com.google.android.apps.youtube.vr.oculus",
+        // User-facing description of the app *and* what this bundle does to it, which is the
+        // convention other community bundles follow (patches-list.json carries it as
+        // `compatiblePackages[].description`, and Morphe Manager and third-party patch indexes
+        // read that file). It is deliberately one sentence per audience: the first says which
+        // build of the app this is -- the Quest one, not the store package the phone patches
+        // target -- and the second says what a user gets from patching it.
+        description = "The Meta Quest build of YouTube VR. These patches make playback ad-free, " +
+            "add SponsorBlock and a starting video quality, and install as a clone beside the " +
+            "store app.",
         apkFileType = ApkFileType.APK,
         appIconColor = 0xFF0000, // Icon color in Morphe Manager. Usually the same color as the icon background.
         targets = listOf(
