@@ -345,8 +345,11 @@ private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
         "android:key" to VIDEO_QUALITY_KEY,
         "android:title" to VIDEO_QUALITY_TITLE,
         "android:defaultValue" to VIDEO_QUALITY_DEFAULT,
-        "android:entries" to "@$VIDEO_QUALITY_ARRAY_ENTRIES",
-        "android:entryValues" to "@$VIDEO_QUALITY_ARRAY_VALUES",
+        // Full `@type/name` form, deliberately: an unqualified `@ytvr_vq_entries` is stored as a
+        // raw string by the resource encoder and the reference resolves to 0 at runtime, which
+        // crashes the hub's inflation with Resources$NotFoundException (verified on device).
+        "android:entries" to "@array/$VIDEO_QUALITY_ARRAY_ENTRIES",
+        "android:entryValues" to "@array/$VIDEO_QUALITY_ARRAY_VALUES",
         // ListPreference replaces %s with the selected entry, so the row itself says what it
         // currently does -- the same subtitle shape the category pickers use.
         "android:summary" to "%s",
