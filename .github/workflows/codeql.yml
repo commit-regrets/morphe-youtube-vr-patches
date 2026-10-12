@@ -1,0 +1,83 @@
+name: "CodeQL Analysis"
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  schedule:
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: java-kotlin
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Java 21 is required for patches & extension
+      - name: Setup Java
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # Provide Android platform jar and R8 required by buildAndroid
+      - name: Provide Android platform jar and R8
+        if: matrix.language == 'java-kotlin'
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools"
+          curl -fsSL -o "$tools/platform.zip" \
+            https://dl.google.com/android/repository/platform-34-ext7_r03.zip
+          unzip -q -o "$tools/platform.zip" -d "$tools"
+          echo "ANDROID_JAR=$(find "$tools" -name android.jar | head -n1)" >> "$GITHUB_ENV"
+          curl -fsSL -o "$tools/r8.jar" \
+            https://maven.google.com/com/android/tools/r8/9.5.23/r8-9.5.23.jar
+          echo "R8_JAR=$tools/r8.jar" >> "$GITHUB_ENV"
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # Compiled build step for Java/Kotlin
+      - name: Build Java & Kotlin code
+        if: matrix.language == 'java-kotlin'
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew buildAndroid --no-daemon
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
