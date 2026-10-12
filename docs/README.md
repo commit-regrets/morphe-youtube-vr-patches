@@ -11,6 +11,7 @@ re-derive the patches against a future app version — they are not user documen
 | [GETTING-THE-APK.md](GETTING-THE-APK.md) | Where the Quest APK actually comes from (it is not on the mirror sites — those carry the Daydream build), the version rule, and why this repository never ships the APK. |
 | [APP-NAME-CARD.md](APP-NAME-CARD.md) | Why a cloned build shows `App name unavailable` in the dock, with the decompiled data path and the guard on every API that could name it — **settled: no in-APK fix exists**, and the `com.oculus.app_id` variant was implemented and measured. Read this before trying anything about the app's name or the store's "restore" prompt. |
 | [SPONSORBLOCK-PLAN.md](SPONSORBLOCK-PLAN.md) | Research and implementation plan for SponsorBlock in the VR app (auto-skip only): the phone patch's design as the reference, the seven player hooks this app gives us **with measured uniqueness counts**, and the one blocking unknown — the playback-position accessor — with the candidate routes and fallbacks. Read this before starting the feature. |
+| [MOD-SETTINGS-STRATEGY.md](MOD-SETTINGS-STRATEGY.md) | How to build native in-app settings (the "Patch settings" hub and sub-screens) reusing the app's own dead preference XMLs, fragments, navigation, and back stack. |
 
 Everything here is unofficial and unaffiliated with Google, YouTube or Meta; the app internals
 described are Google's code, and this repository contains only patches and notes about it. No

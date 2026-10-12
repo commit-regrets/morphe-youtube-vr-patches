@@ -56,8 +56,9 @@ into a lookup against FINGERPRINTS.md.
 
 ## Adding support for a new version (maintainer checklist)
 
-1. Get the APK of that exact version from your own headset (`adb pull`, see
-   [GETTING-THE-APK.md](GETTING-THE-APK.md)) or with DownQuest for an older build.
+1. Get the APK of that exact version from your own headset (using an on-device backup tool
+   like Quest Games Optimizer or `adb pull`, see [GETTING-THE-APK.md](GETTING-THE-APK.md)) or with
+   DownQuest for an older build.
 2. Add it to `Constants.kt`. While the fingerprints are unverified, add it as
    `isExperimental = true` with a description saying so.
 3. Apply with diagnostics on, so the diagnostics-gated fingerprints are exercised too:

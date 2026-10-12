@@ -194,12 +194,14 @@ entry per feature, and features add rows there as they grow. Today:
 
 - **SponsorBlock** — opens the SponsorBlock screen:
   - **SponsorBlock** — the master switch. Off means no fetching and no skipping.
-  - **Seek-bar markers** — the coloured bars on the seek bar, if you want the skipping without them.
-  - **Skip each segment only once** — off, a segment is skipped every time; on, it is skipped the first
-    time and plays through after that.
-  - **Categories** — one switch per SponsorBlock category: Sponsor, Unpaid / self-promotion, Interaction
-    reminder, Intro / intermission, Outro / endcards, Highlight, Preview / recap, Hook / greetings,
-    Filler / tangent, Non-music section. The first five are on by default.
+  - **Seek-bar markers** — toggles drawing category markers directly on the VR seek bar.
+  - **Categories** — one row per category (Sponsor, Unpaid / self-promotion, Interaction reminder,
+    Intro / intermission, Outro / endcards, Highlight, Preview / recap, Hook / greetings, Filler / tangent,
+    Non-music section), colour-coded to match the seek bar markers. Tapping a category opens an in-row
+    behaviour picker (**Skip automatically**, **Skip automatically once**, **Show in seekbar only**, or **Disable**).
+  - **Stats** — display-only counter showing total skipped segments and time saved.
+  - **Minimum segment duration** — seek-bar slider to ignore segments shorter than a specified number of seconds.
+- **Verbose logging** — toggles diagnostic logs to logcat for troubleshooting.
 
 All of it is built from the app's own preferences XML, so the rows render, scroll, focus and respond
 to the controller exactly like YouTube's own rows.
