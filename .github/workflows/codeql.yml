@@ -5,6 +5,11 @@ on:
     branches:
       - main
       - develop
+    # A deny-list, deliberately, not the allow-list `build.yml` uses. The two have different
+    # failure modes: an allow-list that misses a new source directory stops scanning it
+    # silently, while a deny-list that misses one costs a run that finds nothing. A security
+    # scan should fail loud and cheap, not quiet and blind -- so anything that is not
+    # provably code-free (prose, licences, editor config) is scanned by default.
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -39,6 +44,13 @@ jobs:
           - language: javascript-typescript
             build-mode: none
           - language: python
+            build-mode: none
+          # The workflow files are the repository's most privileged code -- the release
+          # publishes with `npx semantic-release`, the GitLab mirror pushes with an SSH key and
+          # the PR opener holds `pull-requests: write` -- and `actions` is the only CodeQL
+          # extractor that reads them. Without it, a `.github/**` push runs three analyses that
+          # cannot see the file that changed.
+          - language: actions
             build-mode: none
 
     steps:
