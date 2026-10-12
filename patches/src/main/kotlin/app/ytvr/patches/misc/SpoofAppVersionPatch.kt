@@ -40,8 +40,10 @@ private val appVersionCodeFingerprint = Fingerprint(
 @Suppress("unused")
 val spoofAppVersionPatch = bytecodePatch(
     name = "Spoof app version",
-    description = "Adds an option to trick the app into thinking you are running a different version.",
-    default = true
+    description = "Adds an option to trick the app into thinking you are running a different " +
+        "version; the option ships set to the app's current version, so selecting the " +
+        "patch alone changes nothing.",
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -64,7 +66,7 @@ val spoofAppVersionPatch = bytecodePatch(
             """
                 const-string v0, "$versionName"
                 return-object v0
-            """
+            """,
         )
 
         // Also override the version code with the value the configured version
@@ -82,7 +84,7 @@ val spoofAppVersionPatch = bytecodePatch(
             """
                 const v0, $versionCode
                 return v0
-            """
+            """,
         )
     }
 }

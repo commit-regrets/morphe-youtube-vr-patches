@@ -47,8 +47,10 @@ private val defaultUserAgentFingerprint = Fingerprint(
 @Suppress("unused")
 val spoofUserAgentPackagePatch = bytecodePatch(
     name = "Spoof package name in User-Agent",
-    description = "Adds an option to report a different app package name in the Cronet User-Agent.",
-    default = true
+    description = "Adds an option to report a different app package name in the Cronet " +
+        "User-Agent; the option ships set to the original package name, so selecting " +
+        "the patch alone changes nothing.",
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -72,7 +74,7 @@ val spoofUserAgentPackagePatch = bytecodePatch(
         // the constant for the StringBuilder append that follows.
         defaultUserAgentFingerprint.method.replaceInstruction(
             matchIndex,
-            "const-string v$register, \"$packageName\""
+            "const-string v$register, \"$packageName\"",
         )
         defaultUserAgentFingerprint.method.replaceInstruction(matchIndex + 1, "nop")
     }
