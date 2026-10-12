@@ -5,6 +5,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.stringOption
 import app.ytvr.patches.shared.Constants.COMPATIBILITY_YOUTUBE_VR
+import app.ytvr.patches.shared.SUPPORTED_APP_VERSION
 import app.ytvr.patches.shared.VERSION_NAME_OVERRIDE_KEY
 import app.ytvr.patches.shared.holdsStringLiteral
 
@@ -49,13 +50,13 @@ val spoofAppVersionPatch = bytecodePatch(
 
     val spoofedVersionName by stringOption(
         key = "spoofedVersionName",
-        default = "1.88.10",
+        default = SUPPORTED_APP_VERSION,
         title = "Spoofed version name",
     )
 
     execute {
         // Escape the configured version name for use in a smali string literal.
-        val versionName = (spoofedVersionName ?: "1.88.10")
+        val versionName = (spoofedVersionName ?: SUPPORTED_APP_VERSION)
             .replace("\\", "\\\\")
             .replace("\"", "\\\"")
 
@@ -73,7 +74,7 @@ val spoofAppVersionPatch = bytecodePatch(
         // name implies (major*10^7 + minor*10^5 + patch*10^3, matching the
         // scheme of the app's own version codes), so version-dependent server
         // behavior sees a consistent version instead of the real build's code.
-        val codeParts = (spoofedVersionName ?: "1.88.10").split(".")
+        val codeParts = (spoofedVersionName ?: SUPPORTED_APP_VERSION).split(".")
         val major = codeParts.getOrNull(0)?.toIntOrNull() ?: 0
         val minor = codeParts.getOrNull(1)?.toIntOrNull() ?: 0
         val patch = codeParts.getOrNull(2)?.toIntOrNull() ?: 0

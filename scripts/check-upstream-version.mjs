@@ -75,13 +75,20 @@ function parseSupportedVersions() {
   }
 
   const content = fs.readFileSync(CONSTANTS_FILE, 'utf8');
-  // Matches AppTarget( ... version = "X.Y.Z" ... )
-  // Handles non-commented targets
+  // Matches AppTarget( ... version = "X.Y.Z" ... ) -- literal targets -- plus the
+  // SUPPORTED_APP_VERSION constant that the verified target references. The inline `//`
+  // before `version` in Constants.kt's commented-out example cannot be matched by `\s*`,
+  // so commented targets stay excluded.
   const versionRegex = /AppTarget\s*\(\s*version\s*=\s*"([^"]+)"/g;
+  const constantRegex = /const\s+val\s+SUPPORTED_APP_VERSION\s*=\s*"([^"]+)"/;
   const versions = [];
   let match;
   while ((match = versionRegex.exec(content)) !== null) {
     versions.push(match[1]);
+  }
+  const constantMatch = content.match(constantRegex);
+  if (constantMatch && !versions.includes(constantMatch[1])) {
+    versions.push(constantMatch[1]);
   }
 
   return versions;

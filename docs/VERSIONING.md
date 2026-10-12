@@ -21,7 +21,7 @@ successful run. So:
 
 | declared as | meaning |
 |---|---|
-| `AppTarget(version = "1.88.10", description = "Verified: …")` | every fingerprint was re-derived against that build; the patches are expected to work |
+| `AppTarget(version = SUPPORTED_APP_VERSION, description = "Verified: …")` | every fingerprint was re-derived against that build; the patches are expected to work. `SUPPORTED_APP_VERSION` (top of `Constants.kt`) is the single source the Spoof app version option default follows |
 | `AppTarget(version = "X", isExperimental = true, description = "Untested: …")` | nobody has re-derived the fingerprints for that build. The patches are *attempted*; some are expected to fail. This is the honest "try it, it is not guaranteed" channel, and it shows up in Morphe Manager |
 | not listed at all | skipped silently — see above |
 
@@ -81,7 +81,9 @@ into a lookup against FINGERPRINTS.md.
      wrong method still produces a valid APK, so this check is the one that catches it;
    - on the device: play a video and confirm `ad slots: cleared N entries` in logcat, zero
      `skip-ad countdown` lines, and `onPlaying`.
-6. Flip the target from experimental to a normal (verified) target and cut a release.
+6. Flip the target from experimental to a normal (verified) target, point `SUPPORTED_APP_VERSION`
+   (`Constants.kt`) at it — the Spoof app version option default follows the constant — and cut a
+   release.
 
 ## Notes
 

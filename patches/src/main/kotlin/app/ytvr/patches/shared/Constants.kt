@@ -14,6 +14,14 @@ import app.morphe.patcher.patch.Compatibility
  */
 const val VERSION_NAME_OVERRIDE_KEY = "pref_override_build_version_name"
 
+/**
+ * The app version this bundle is verified against -- the newest normal (non-experimental)
+ * AppTarget below, single-sourced so the Spoof app version option default cannot drift from
+ * the support pinning on a version bump. scripts/check-upstream-version.mjs reads this
+ * constant alongside the literal AppTarget versions.
+ */
+const val SUPPORTED_APP_VERSION = "1.88.10"
+
 object Constants {
     val COMPATIBILITY_YOUTUBE_VR = Compatibility(
         name = "YouTube VR", // App name as it appears in the Android launcher.
@@ -55,7 +63,7 @@ object Constants {
             // arm64-v8a only.
             // ---------------------------------------------------------------------------------
             AppTarget(
-                version = "1.88.10",
+                version = SUPPORTED_APP_VERSION,
                 description = "Verified: every fingerprint was re-derived against this build.",
             ),
         ),
