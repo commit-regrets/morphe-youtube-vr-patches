@@ -5,6 +5,13 @@ on:
     branches:
       - main
       - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.editorconfig'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'NOTICE'
   schedule:
     - cron: '30 3 * * 1'
   workflow_dispatch:
