@@ -155,17 +155,13 @@ writes or is consulted for it is signature-guarded (`prot=signature|preinstalled
 The **SponsorBlock** patch automatically skips crowd-sourced segments from
 [sponsor.ajay.app](https://sponsor.ajay.app) while a video plays.
 
-**It is off by default**, so a normal build does not include it and there is no trace of it in the
-app. Turn it on for a build either by ticking it in Morphe Manager or, with the local script:
+**It is on by default**, so a normal build includes it out of the box and installs the in-headset
+**Patch settings** hub screen.
 
-```powershell
-.\scripts\patch-and-install.ps1 -Apk <stock apk> -ExtraPatches SponsorBlock
-```
-
-Configuration today is the patch options: the API base (a self-hosted instance works) and one
-behaviour per category — **skip**, **skip-once** or **ignore**. The defaults are
-`sponsor`/`selfpromo`/`interaction`/`intro`/`outro` = `skip`, and
-`preview` / `hook` / `filler` / `music_offtopic` / `poi_highlight` = `ignore`.
+Default behaviour ships with upstream's recommended configuration (`sponsor` = `skip-once`;
+`selfpromo`, `interaction`, `highlight`, `intro`, `outro`, and `music_offtopic` = `seekbar-only`;
+`preview`, `hook`, and `filler` = `ignore`), with customizable build options for the API base
+(a self-hosted instance works) and per-category behaviour.
 
 How it behaves (all three measured on the headset against a real segment):
 
@@ -209,8 +205,8 @@ All of it is built from the app's own preferences XML, so the rows render, scrol
 to the controller exactly like YouTube's own rows.
 
 Changes are stored on the device and apply to the next video — no rebuild, no restart. They override
-the patch options, which remain the defaults (`sponsor`, `selfpromo`, `interaction`, `intro` and `outro`
-= `skip`, the rest ignored — `skip-once` is what the "only once" switch turns on). The section is this
+the patch options, which remain the defaults (`sponsor` = `skip-once`, `selfpromo`/`interaction`/`intro`/`outro`/`highlight`/`music_offtopic`
+= `seekbar-only`, `preview`/`hook`/`filler` = `ignore`). The section is this
 project's own, named so it cannot be confused with Morphe's settings.
 
 The other patch options (the streaming spoof, the diagnostic probes) stay build-time on purpose: the
