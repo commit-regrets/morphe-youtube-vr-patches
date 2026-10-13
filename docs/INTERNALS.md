@@ -123,6 +123,19 @@ something we tested.
    does not (the latter resolves to the phone app's `UrlActivity`), and link intents land on the home
    feed.
 
+### Applying from the CLI: two traps
+
+- **Every `-O` on a command line belongs to the first `--enable`.** A second patch's option is silently
+  dropped — the patcher binds `-O` to whichever patch was enabled first — so pass options through a
+  generated `--options-file` (which is what `scripts/patch-and-install.ps1` does) and assert the
+  *effective* values back out of `--result-file`. That assertion is the only place a dropped option
+  becomes visible at all.
+- **The official *Clone app* has to be its own pass**, with `--exclusive --enable "Clone app"`: patches
+  are filtered by package name, so anything after a rename applies 0 patches. And never select both
+  renamers in one run — both finalise, and the **official one wins**, because patches execute
+  alphabetically while their finalize blocks run in reverse. `-OfficialClone` disables ours for that
+  run so the script cannot walk into it.
+
 ## Traps that cost real time
 
 - **androidx preference members are R8-renamed; the class names are not.** `androidx.preference.Preference`

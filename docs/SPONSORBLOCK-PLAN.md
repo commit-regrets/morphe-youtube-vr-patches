@@ -1153,3 +1153,22 @@ zone belongs to the shell (panel dismissal) anyway. What shipped instead: the ca
 to the card's top-left corner (the standard back position, `deprecated_settings_holder_fragment`
 back-button container: `alignParentStart` + margins instead of `centerHorizontal`), so the two
 controls read as different things -- the card's back at top-left, the OS's panel control above.
+
+## Observed behaviour (measured on the headset, against a real segment)
+
+What the rules above mean to whoever is watching the picture. Each line was measured on a real
+playback, and each is something a user is likely to notice or to file as a bug:
+
+- playback that **reaches** a segment skips the moment the playhead enters it, seeking to the
+  segment's end (measured: 0.5 s into a 40.781 s segment start);
+- **dragging the seek bar back before** a segment makes it skip again -- the skip is per *pass*, not
+  per app run, so re-watching a video skips again too;
+- **dragging the seek bar into** the middle of a segment lets it play out, which is what the web
+  extension does (a segment you asked for is not yanked away);
+- `skip-once` means once per *playback*: seeking back before the segment re-arms it, and only a
+  segment you were *seeked into* stays un-skipped while the playhead is inside it;
+- no skip is attempted while the app's own ad UI is counting down;
+- segments are fetched once per video; `404` -- "no segments here" -- is the normal quiet answer;
+- a category set to `ignore` does **nothing at all**, silently. On the phone those categories show a
+  skip button and VR has no button, so a video whose only segments are `filler` or `music_offtopic`
+  looks like SponsorBlock is broken until that category is switched on in Patch settings.

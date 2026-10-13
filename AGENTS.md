@@ -276,9 +276,10 @@ negation, not `!(a|b)` extglobs. Use a `path: |` list with `!...` exclusion line
 **Attest.** `release.yml`'s `Attest` step fails on a private repository ("feature not available for
 user-owned private repositories") — cosmetic, and it should pass once the repository is public.
 
-**Morphe Manager: the mechanics that are not visible from here.** None of the four below can be read
-off this repository, and each one has already looked like a bug report ("there is no clone option",
-"my stock app is gone"):
+### Morphe Manager: the mechanics that are not visible from here
+
+None of the four below can be read off this repository, and each one has already looked like a bug
+report ("there is no clone option", "my stock app is gone"):
 
 * **Simple mode never draws a patch list for this app.** Simple mode applies only the patches selected
   by default, and for YouTube VR the official bundle contributes none, so a Simple-mode run applies
