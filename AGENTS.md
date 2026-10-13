@@ -147,6 +147,7 @@ from the device.
 | the two hosts put the patcher's **session** in different places, on the same patcher version: the CLI keeps one directory holding both the decoded tree (`temporaryFilesPath/apk/resources/…`) and the workspace (`PatcherConfig`: `fileWorkspace = temporaryFilesPath.resolve("workspace")`), while Morphe Manager deliberately splits them — tree under `cacheDir/patcher` where `cacheDir = fs.tempDir = app.getDir("ephemeral")`, workspace under `context.cacheDir/patch-workspace` ("Not under tempDir because the patcher wipes that directory when it starts") | anything deriving a path from `fileWorkspace.parentFile` works from the CLI and fails under Manager. **Found from a real Manager run** (Manager 1.35.0, patcher 1.15.1): `PatchException: Patch settings: no settings preferences XML under …/cache; looked for settings_prefs.xml, panel2_settings_prefs.xml` at `SettingsXml.kt:54`, from `sponsorBlockPatch$lambda$0$11` (`SponsorBlockPatch.kt:1586`) — the whole SponsorBlock pass aborted, so the user got no settings screens. The named path is the workspace's *parent* (`…/cache`), one level below the app-data root that covers both `app_ephemeral/…` and `cache/…` — two levels above the workspace, which is what `SettingsXmlKt.restructureSettingsXmls` now walks (bounded ancestors, nearest first, every root named in the exception) |
 | a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension read `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. **Fixed the same day**: `SponsorBlockSettings.modPreferences` now reads and writes `youtube.xml` too, so the widgets own every row again; `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, so the gate follows the tap without waiting for the widget's apply |
 | a settings-XML `@` reference must be **full `@type/name`**: the resource encoder stores an unqualified one (`@ytvr_vq_entries`) as a raw *string* instead of failing, and the attribute's compiled value becomes resource id 0 | opening the "Patch settings" hub crashed with `Resources$NotFoundException: Text array resource ID #0x0` inside `ListPreference` inflation (2026-10-13, the Default video quality picker's `android:entries`/`android:entryValues`). The encoder prints no warning, and a raw `rg -a` over the APK cannot catch it — the compiled XML's string pool holds the literal either way only when unresolved, so the check is a string-pool parse: the hub's pool must contain no `@ytvr_vq` literal, and resources.arsc must hold both array names |
+| **an object reaching native code is not evidence that native reads it** | the DRC patch hooked `PlaybackAgnosticUserPreferences.getIsDrcEnabled` on the strength of the object crossing the JNI boundary, and nothing ever read it. Measured 2026-10-13, three ways that agree: **no caller in any dex** (every reference is inside the class itself), the getter's name in **none** of the app's 40 `.so` files (while the sibling `setPlaybackAgnosticUserPreferences` *is* in `libgoogle3.so`), and **no call during a live playback** with the log gate open (`onPlaying` fired, the hook's own line never did). Before trusting a hook, ask what *calls* it — dex first, then the native symbol names, then a real run |
 
 ## SponsorBlock notes
 
@@ -154,10 +155,17 @@ from the device.
   `seekbar-only`, `manual-skip`→normalised to `seekbar-only`, `ignore`), `ytvr_mod_cat_<category>`
   (legacy switches, migrated at start-up), `ytvr_mod_sb_enabled`, `ytvr_mod_sb_markers`,
   `ytvr_mod_sb_skip_once` (legacy), `ytvr_mod_sb_min_duration`, `ytvr_mod_sb_stats_segments`/`_millis`.
+  The hub also carries `ytvr_mod_video_quality`, `ytvr_mod_verbose_logging` and — added 2026-10-13 —
+  `ytvr_mod_quic_enabled`: a patch option seeds each one, and its hub row owns it from the first change
+  onward. QUIC only applies after a restart, because Cronet builds its engine once per process.
+  (`ytvr_mod_drc_disabled` was built the same way and was then dropped with its patch; see the DRC row
+  in INTERNALS.md for why nothing read it.)
 * The palette lives in `CategoryColours` and is shared by the seek-bar overlay and the settings rows,
   so a marker and its row cannot disagree.
-* `CategoryRows` owns the row UI: colouring, the in-row behaviour list, and the summaries of the two
-  display-only rows (`Stats`, `Minimum segment duration`).
+* `CategoryRows` owns the row UI: colouring, the in-row behaviour list, the summaries of the two
+  display-only rows (`Stats`, `Minimum segment duration`), and the one switch row whose *write* it owns
+  as well (`QUIC (HTTP/3)`) — a `SwitchPreference` persists its own XML default on first bind, so a
+  seeded row must not declare one.
 * Upstream's default map is what ships (`sponsor=skip-once`; selfpromo/interaction/highlight/intro/
   outro/music_offtopic = `seekbar-only`; preview/hook/filler = `ignore`), and `migrateOldDefaults()`
   moves rows still holding this port's older defaults so the change is actually seen.

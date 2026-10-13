@@ -31,7 +31,7 @@ table, and verify with the recipe in the "Verifying a change" section.
 | ad tracking/ping loader | `rgx.g(List)` → `tyj.r(Uri)` | parses a URI and hands it to `tyj.r` | — (candidate, see below) |
 | stream-stitched ads (SSAI) | `ryi` / cuepoints | the info hook: the generated `ServerStitchedDaiInfo` return type + the class's `daistate` literal + a body that uses the proto; the `Uri`/`Z(J)` hooks match by class name on purpose | — (patch **removed 2026-10-13**: the ad is stitched into the SABR stream by the server, so the client side plumbing was all that could be touched and removing it changed nothing observable; anchors kept in FINGERPRINTS.md) |
 | age-restriction dialogs | `sfp.f()` (adult), `sfp.k()` (controversial, backed by `sfu.c`) | the policy's own PlayabilityPolicy logger literal + the no-arg boxed-`Boolean` / `Z` shape (and "has a body", or the abstract sibling matches too) | Remove viewer discretion dialog |
-| DRC audio | `PlaybackAgnosticUserPreferences.getIsDrcEnabled` | unobfuscated name | Disable DRC audio |
+| DRC audio | `PlaybackAgnosticUserPreferences.getIsDrcEnabled` | unobfuscated name | — (patch **removed 2026-10-13**: the hook installed correctly, but nothing reads it. No Java caller anywhere in the dexes, the getter's name is in **none** of the app's 40 `.so` files, and it is never called during a live playback with the log gate open -- while the object itself does cross to C++ (`setPlaybackAgnosticUserPreferences` is in `libgoogle3.so`), which is why "the object reaches native" is not evidence that anything reads it) |
 | version spoofing | `ocn.b(Context)` (name), `ocn.a(Context)` (code) | the `pref_override_build_version_name` literal: the class that holds it, its `String(Context)` and its `I(Context)` | Spoof app version |
 | QUIC | cronet builder chain in `ltq` | `Object(Object,Object)` holding `youtubei.googleapis.com`, with `const 1` → `enableQuic` → `move-result-object` (1 match; `phn`'s second engine is excluded because it passes `false`) | Disable QUIC protocol |
 | osName / device class | `ocn.c(Context)` | `Z(Context)` whose body holds `android.hardware.type.automotive`, in the class holding the version-name preference key (the literal alone occurs in 9 classes) | — (patch removed 2026-10-12: measured to propagate but not to block ads, see FINGERPRINTS.md) |
@@ -184,10 +184,13 @@ something we tested.
 - **Every `-O` on a command line belongs to the FIRST `--enable`; later patches get no options at
   all.** Measured: `-OenableDiagnostics=true -e Extension` sets *both*
   options (one patch does receive several), but
-  `-OenableDiagnostics=true -e Extension -OdisableQuic=true -e "Disable QUIC protocol"` leaves
-  `disableQuic=false`, and so does putting both `-O`s before the first `-e`. The second patch's
+  `-OenableDiagnostics=true -e Extension -OenableNativeFormats=true -e "Native formats without SABR"` leaves
+  `enableNativeFormats=false`, and so does putting both `-O`s before the first `-e`. The second patch's
   option is dropped, not rejected, so the patch reports `Applied:` and then does nothing when the
-  option gates its `execute` (which `disableQuic` does). This is not theoretical:
+  option gates its `execute` (which `enableNativeFormats` does -- it is the call injection's gate).
+  Note that this stopped being observable through QUIC's option when that patch became the
+  in-headset switch: its option now only *seeds* the row, so a dropped `-O` there is invisible by
+  design rather than silently wrong. This is not theoretical:
   `scripts/patch-and-install.ps1 -NoSpoof` also passes an app name, which was silently ignored until
   the script switched to an options file. Pass `--options-file` instead -- its root **must be a JSON
   array**, patches it does not mention keep their defaults (the CLI says which on stdout), and it can

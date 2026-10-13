@@ -93,28 +93,25 @@ param(
     # Patches that MUST end up applied. Catches the silent failure mode where a newer app version
     # is outside the declared AppTarget in Constants.kt, so the patcher *skips* the patch instead
     # of failing: without this check the result is an unpatched app and a green-looking run.
-    # Defaults to every patch that is on by default, because the app version this repo supports is
-    # exactly one and a skip in any of them is a broken build; the opt-in patch (Disable QUIC)
-    # is not listed. Override with -RequirePatches.
+    # Every patch in the bundle is on by default (the last opt-in one, QUIC, became the switch that
+    # installs the in-headset QUIC row), so all of them are listed. Override with -RequirePatches.
     [string[]] $RequirePatches = @(
         'App name',
         'Default video quality',
-        'Disable DRC audio',
         'Extension',
         'Hide ads',
         'Install as clone',
+        'QUIC (HTTP/3)',
         'Remove viewer discretion dialog',
         'SponsorBlock',
         'Spoof app version',
         'Spoof package name in User-Agent'
     ),
 
-    # Opt-in patches to turn on for this run, for the patches that are off by default (Disable
-    # QUIC). SponsorBlock is `default = true` now, so the
-    # patcher selects it on its own; it stays in this list so a run against an older bundle
-    # still cannot silently drop the settings screens (which is exactly what happened on
-    # 2026-10-11). Passing -ExtraPatches replaces this list, so name SponsorBlock alongside
-    # anything else you need. Its options keep their defaults.
+    # Extra patches to turn on for this run. Nothing is off by default any more, but naming
+    # SponsorBlock keeps a run against an older bundle from silently dropping the settings screens,
+    # and it stays in this list for that reason. Passing -ExtraPatches replaces this list, so name
+    # SponsorBlock alongside anything else you need. Its options keep their defaults.
     [string[]] $ExtraPatches = @('SponsorBlock'),
 
     # Rename with the official bundle's universal "Clone app" instead of this bundle's

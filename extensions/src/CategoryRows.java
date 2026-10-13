@@ -94,6 +94,13 @@ public final class CategoryRows {
      */
     private static final int QUALITY_ACCENT = 0xFF3EA6FF;
 
+    /**
+     * The switch row this class owns besides the log gate, matched by the title the patch writes it
+     * with (`SettingsXml.QUIC_TITLE`). It comes from a patch that used to be all-or-nothing at
+     * patch time.
+     */
+    private static final String QUIC_TITLE = "QUIC (HTTP/3)";
+
     private static final Set<String> REPORTED = Collections.synchronizedSet(new HashSet<String>());
     private static volatile Field ITEM_VIEW;
     private static volatile boolean HOOK_REPORTED;
@@ -183,6 +190,8 @@ public final class CategoryRows {
                     decorateLogGateRow(row);
                 } else if (VIDEO_QUALITY_TITLE.equals(label)) {
                     decorateQualityRow(row);
+                } else if (QUIC_TITLE.equals(label)) {
+                    decorateSettingSwitchRow(row, QUIC_SWITCH);
                 }
                 // **Leave every other row completely alone** -- this hook runs for every row of
                 // every
@@ -296,6 +305,97 @@ public final class CategoryRows {
         VerboseLog.logGateToggle(on);
         SponsorBlockSettings.setVerboseLogging(on);
         VerboseLog.setEnabled(on);
+    }
+
+    /**
+     * A hub switch this class owns: read the effective state, write the viewer's choice, and say in
+     * the row's subtitle what the two states mean.
+     */
+    interface SettingSwitch {
+        boolean isOn();
+
+        void set(boolean on);
+
+        String summary(boolean on);
+    }
+
+    /** QUIC: on means HTTP/3 over UDP is allowed. Cronet builds its engine once per process. */
+    private static final SettingSwitch QUIC_SWITCH =
+            new SettingSwitch() {
+                @Override
+                public boolean isOn() {
+                    return QuicTransport.currentSelection();
+                }
+
+                @Override
+                public void set(boolean on) {
+                    QuicTransport.setQuicEnabled(on);
+                }
+
+                @Override
+                public String summary(boolean on) {
+                    return (on
+                                    ? "On: QUIC allowed (HTTP/3 over UDP)"
+                                    : "Off: TCP/TLS only, for networks that block UDP")
+                            + " -- applies after restart";
+                }
+            };
+
+    /**
+     * The switch this class owns besides the log gate.
+     *
+     * <p>It is handled here rather than left to the widget for the reason the log gate is: a
+     * `SwitchPreference` on these screens persists whatever its own XML default says the first time
+     * a row is bound, and the value that matters is the one the *extension* derived -- the viewer's
+     * stored choice, else the patch option's seed. So the row renders the effective state with the
+     * listener detached and this class performs the write.
+     */
+    private static void decorateSettingSwitchRow(final View row, final SettingSwitch setting) {
+        try {
+            final CompoundButton toggle = compoundButtonIn(row);
+            // One listener instance, so the re-render can detach and re-attach this very one: a tap
+            // reaches both the row's click and the switch's change, and the equality check is what
+            // keeps one tap from being applied -- and logged -- twice.
+            final CompoundButton.OnCheckedChangeListener listener =
+                    new CompoundButton.OnCheckedChangeListener() {
+                        @Override
+                        public void onCheckedChanged(CompoundButton button, boolean checked) {
+                            if (setting.isOn() == checked) {
+                                return;
+                            }
+                            setting.set(checked);
+                            showSummary(row, setting.summary(checked));
+                        }
+                    };
+            renderSettingSwitch(setting, row, toggle, listener);
+            row.setOnClickListener(
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View clicked) {
+                            boolean on = !setting.isOn();
+                            setting.set(on);
+                            showSummary(row, setting.summary(on));
+                            renderSettingSwitch(setting, row, toggle, listener);
+                        }
+                    });
+        } catch (Throwable t) {
+            log("setting switch row failed: " + t);
+        }
+    }
+
+    /** Draws the switch from the *effective* state, without that being read as a tap. */
+    private static void renderSettingSwitch(
+            SettingSwitch setting,
+            View row,
+            CompoundButton toggle,
+            CompoundButton.OnCheckedChangeListener listener) {
+        boolean on = setting.isOn();
+        if (toggle != null) {
+            toggle.setOnCheckedChangeListener(null);
+            toggle.setChecked(on);
+            toggle.setOnCheckedChangeListener(listener);
+        }
+        showSummary(row, setting.summary(on));
     }
 
     /**
