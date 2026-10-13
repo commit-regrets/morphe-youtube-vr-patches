@@ -69,6 +69,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A blob whose stored line endings disagree with `.gitattributes` reads as permanently modified in
+      # every working tree: `gradlew.bat` did exactly that from the Dependabot wrapper bump until it was
+      # renormalised on 2026-10-13, and a `git rebase --autostash` around it swallowed a pair of edits.
+      # Detection rather than auto-commit on purpose -- a workflow that rewrote line endings on `develop`
+      # would hide the same class of drift instead of surfacing it.
+      - name: Check for line-ending drift
+        run: |
+          git add --renormalize .
+          if ! git diff --cached --quiet; then
+            echo "::error::committed line endings disagree with .gitattributes; run: git add --renormalize . && git commit"
+            git diff --cached --stat
+            exit 1
+          fi
+
       - name: Setup Java
         uses: actions/setup-java@v6.0.1
         with:
