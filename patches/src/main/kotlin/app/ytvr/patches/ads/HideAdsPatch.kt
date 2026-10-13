@@ -49,7 +49,7 @@ private fun Method.loadedAndReturnedStaticField(): FieldReference {
 val hideAdsPatch = bytecodePatch(
     name = "Hide ads",
     description = "Hides video ads.",
-    default = true
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -72,7 +72,7 @@ val hideAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 sget-object v0, $emptyList
                 return-object v0
-            """
+            """,
         )
 
         // Prevent ad break responses from being requested over the network.
@@ -83,7 +83,7 @@ val hideAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return-object v0
-            """
+            """,
         )
 
         // Prevent the pre-rendered PlayerBytes ad slot embedded in the player
@@ -96,7 +96,7 @@ val hideAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return v0
-            """
+            """,
         )
 
         // Prevent the bootstrap of the pre-rendered PlayerBytes ad layout from
@@ -107,7 +107,19 @@ val hideAdsPatch = bytecodePatch(
                 const-string v0, "playerBytesLayout"
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 return-void
+            """,
+        )
+        // Drop the ad cue-point list the native player hands the app: the server's own statement of
+        // where the ad breaks are. This is the fifth client-side path, and the only one the four
+        // hooks above do not cover -- the removed SSAI patch's fourth hook. It reports itself first,
+        // so a capture shows whether the fallback ad is delivered through it.
+        CuePointListFingerprint.method.addInstructions(
+            0,
             """
+                const-string v0, "cuepointList"
+                invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
+                return-void
+            """,
         )
     }
 }

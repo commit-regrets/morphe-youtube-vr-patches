@@ -102,12 +102,15 @@ Frames are 4128x2208 stereoscopic (both eyes; crop one half if useful).
   **each** launch and each capture, and expect an `am start` against a sleeping headset to be *cached*
   rather than run -- the capture then comes back with zero matching lines, no crash, and no error from
   `am start` either (see the Guardian trap in the measured table).
-* **You cannot fake being worn.** Immersive VR playback stops when the headset is off the head
-  (`STOPPAGE_VR_ACTIVITY_STOP_NO_BACKGROUND_PLAY`, measured 2026-10-13), and the documented
-  `com.oculus.vrpowermanager.prox_close` broadcast answers `result=0` (no receiver). Panel-mode playback
-  and every log-only check -- spoof status, media requests, decoded sizes -- work unworn; anything that
-  needs the *immersive* view needs a human wearing it (covering the proximity sensor is the lab trick,
-  not something to do to someone's headset).
+* **You cannot fake being worn, and video playback does not start at all in an unattended session.**
+  Measured 2026-10-13: with the headset off the head, `am start` reaches the app, the app loads and its
+  extension logs, but `onPlaying` never arrives -- twice, 45 s and 65 s apart -- so any check that
+  depends on *playback* (the spoof's fetch result, the media requests, the decoded size, whether an ad
+  plays) needs a human present or the headset worn. Panel-mode *launch* works unworn; playback does not.
+  Immersive playback additionally stops the moment it comes off the head
+  (`STOPPAGE_VR_ACTIVITY_STOP_NO_BACKGROUND_PLAY`), and the documented
+  `com.oculus.vrpowermanager.prox_close` broadcast answers `result=0` (no receiver). Covering the
+  proximity sensor is the lab trick, not something to do to someone's headset.
 
 **You cannot inject input.** `adb shell input tap` at panel coordinates is ignored (the panel is
 hit-tested in 3D space, not at display coordinates), and key events go to the VR shell — a

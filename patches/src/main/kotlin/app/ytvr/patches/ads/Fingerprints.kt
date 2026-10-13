@@ -98,3 +98,23 @@ object PlayerBytesAdLayoutFingerprint : Fingerprint(
         "Bootstrapped layout construction resulted in non PlayerBytesLayout. PlayerAds count: ",
     ),
 )
+
+/**
+ * Matches the callback the native SABR player uses to hand the app its ad cue-point list -- the
+ * server's statement of where the ad breaks are. The class and method are **not obfuscated** (they
+ * are part of the media interfaces package), which is why this anchor is a name and not a shape.
+ *
+ * This is the one client-side ad path the other four hooks in [app.ytvr.patches.ads.hideAdsPatch]
+ * leave alone, and the one the removed "Hide stitched ads (SSAI)" patch used to cover. Its own note
+ * measured that dropping the list does not remove a *server-stitched* ad, but that measurement was
+ * taken with the streaming spoof working, where ads are absent anyway; on the fallback path -- the
+ * one measured on 2026-10-13 to fetch a doubleclick creative and play the pre-roll -- it has never
+ * been tested. Hooked so it reports itself either way.
+ */
+object CuePointListFingerprint : Fingerprint(
+    definingClass = "Lcom/google/android/libraries/youtube/media/interfaces/" +
+        "CuePointDataProviderWrapper\$NativeCallback;",
+    name = "onCuepointList",
+    parameters = listOf("[B"),
+    returnType = "V",
+)
