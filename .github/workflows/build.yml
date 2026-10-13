@@ -15,6 +15,12 @@ on:
     paths:
       - 'patches/**'
       - 'extensions/**'
+      # The audit runs as a step of this workflow (and its lint proves itself with -SelfTest), so a
+      # change to the script or the dex reader behind it has to re-run the build: otherwise the one job
+      # that verifies them never fires. Measured 2026-10-13: a DexAudit change pushed to develop
+      # produced no Build run at all, because `tools/**` was not in this list.
+      - 'scripts/**'
+      - 'tools/**'
       - 'buildSrc/**'
       - 'gradle/**'
       - 'build.gradle.kts'
