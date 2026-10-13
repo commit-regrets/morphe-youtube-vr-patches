@@ -94,8 +94,8 @@ param(
     # is outside the declared AppTarget in Constants.kt, so the patcher *skips* the patch instead
     # of failing: without this check the result is an unpatched app and a green-looking run.
     # Defaults to every patch that is on by default, because the app version this repo supports is
-    # exactly one and a skip in any of them is a broken build; the two opt-in patches (Hide
-    # stitched ads, Disable QUIC) are not listed. Override with -RequirePatches.
+    # exactly one and a skip in any of them is a broken build; the opt-in patch (Disable QUIC)
+    # is not listed. Override with -RequirePatches.
     [string[]] $RequirePatches = @(
         'App name',
         'Default video quality',
@@ -109,8 +109,8 @@ param(
         'Spoof package name in User-Agent'
     ),
 
-    # Opt-in patches to turn on for this run, for the patches that are off by default (Hide
-    # stitched ads, Disable QUIC). SponsorBlock is `default = true` now, so the
+    # Opt-in patches to turn on for this run, for the patches that are off by default (Disable
+    # QUIC). SponsorBlock is `default = true` now, so the
     # patcher selects it on its own; it stays in this list so a run against an older bundle
     # still cannot silently drop the settings screens (which is exactly what happened on
     # 2026-10-11). Passing -ExtraPatches replaces this list, so name SponsorBlock alongside

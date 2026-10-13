@@ -254,32 +254,6 @@
       "options": []
     },
     {
-      "name": "Hide stitched ads (SSAI)",
-      "description": "Removes the client side ad configuration and cue points for server-stitched (SSAI) streams. It does not remove the ad itself; keeping ads out is the Extension patch's streaming spoof. Off by default.",
-      "default": false,
-      "dependencies": [],
-      "compatiblePackages": [
-        {
-          "packageName": "com.google.android.apps.youtube.vr.oculus",
-          "name": "YouTube VR",
-          "description": "The Meta Quest build of YouTube VR. These patches make playback ad-free, add SponsorBlock and a starting video quality, and install as a clone beside the store app.",
-          "apkFileType": "APK",
-          "appIconColor": "#FF0000",
-          "signatures": null,
-          "targets": [
-            {
-              "version": "1.88.10",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": null,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
       "name": "Install as clone",
       "description": "Installs the patched app as a separate app by default, so it sits alongside the store's YouTube VR instead of replacing it. Replace mode keeps the official package name: the store copy has to be removed to satisfy the signing difference, Horizon OS then treats this build as the YouTube VR app (a restore prompt, and a warning on every reboot), and a store update will collide with it because this build is signed differently.",
       "default": true,

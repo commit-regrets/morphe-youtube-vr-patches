@@ -135,9 +135,9 @@ override the patch options, which stay the defaults. The streaming spoof and the
 rather than a switch.
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.24.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/releases/tag/v1.24.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;12 patches total
+> **[v1.24.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/releases/tag/v1.24.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;11 patches total
 <details open>
-<summary>📦 YouTube VR&nbsp;&nbsp;•&nbsp;&nbsp;12 patches</summary>
+<summary>📦 YouTube VR&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -153,7 +153,6 @@ rather than a switch.
 | [Disable QUIC protocol](#disable-quic-protocol) | Adds an option (off by default) to disable QUIC (Quick UDP Internet Connections) network protocol; selecting the patch alone changes nothing until the option is enabled. | • Disable QUIC protocol |
 | [Extension](#extension) | Injects the extension the other patches run through: its streaming spoof is what removes the pre-roll (ad-free playback) and provides the 8K format support. Turning this patch off restores ads. | • Ad-free streaming spoof (recommended)<br>• Verbose diagnostics (development only)<br>• Force verbose logging (development builds)<br>• Probe identity matrix (~14 requests; needs Verbose diagnostics)<br>• Native formats without SABR (retired experiment)<br>• 8K: accept the AV1 8K HDR tier as SDR (experiment) |
 | [Hide ads](#hide-ads) | Hides video ads. |  |
-| [Hide stitched ads (SSAI)](#hide-stitched-ads-ssai) | Removes the client side ad configuration and cue points for server-stitched (SSAI) streams. It does not remove the ad itself; keeping ads out is the Extension patch's streaming spoof. Off by default. |  |
 | [Install as clone](#install-as-clone) | Installs the patched app as a separate app by default, so it sits alongside the store's YouTube VR instead of replacing it. Replace mode keeps the official package name: the store copy has to be removed to satisfy the signing difference, Horizon OS then treats this build as the YouTube VR app (a restore prompt, and a warning on every reboot), and a store update will collide with it because this build is signed differently. | • Package name<br>• Update permissions<br>• Update providers |
 | [Remove viewer discretion dialog](#remove-viewer-discretion-dialog) | Removes the dialog that appears when opening a video that has been age-restricted by accepting it automatically. This does not bypass the age restriction. |  |
 | [SponsorBlock](#sponsorblock) | Automatically skips SponsorBlock segments (sponsors, self-promos, intros, ...). On by default (sponsors: skip once); configure per-category behaviour below or in the headset's Patch settings screen. | • SponsorBlock API base<br>• Sponsor<br>• Self-promotion<br>• Interaction reminder<br>• Intermission/intro<br>• Outro/endcards<br>• Preview/recap<br>• Hook (padding after intro)<br>• Filler tangent<br>• Music: non-music<br>• Highlight (jump to point) |

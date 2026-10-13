@@ -296,11 +296,12 @@ deliberately rather than accidentally):
   hood, but here it depends on `onProgressing` firing often enough and on pausing/buffering being
   handled. Verify the callback *frequency* before committing to it (log every call for one video).
 - **(b) Ride the DAI/cuepoint channel.** The native player asks the app for server-stitched-ad info
-  per time range (`PlaybackControllerWrapper.getSsdaiInfo(Time)`, the `ryi`/cuepoint path the
-  "Hide stitched ads" patch touches). If the player honours a returned `TimeRange` by skipping it,
+  per time range (`PlaybackControllerWrapper.getSsdaiInfo(Time)`, the `ryi`/cuepoint path the removed
+  "Hide stitched ads" patch used to hook). If the player honours a returned `TimeRange` by skipping it,
   SponsorBlock segments could be injected there — no position needed. Two reasons to treat this as an
-  experiment and not the plan: it fights this repo's own stitched-ads patch, and it may surface
-  ad-like UI/behaviour for a non-ad segment.
+  experiment and not the plan: it reintroduces the hooks that patch was removed for (the ad itself is
+  stitched server-side, which no client hook can undo — see the removal note in INTERNALS.md), and it
+  may surface ad-like UI/behaviour for a non-ad segment.
 - **(c) Media-request-level heuristics** (skipping by media segment index): rejected — it needs the
   DASH/HLS manifest mapping, which the spoofed adaptive formats do not give us.
 
