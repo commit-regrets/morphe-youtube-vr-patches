@@ -117,41 +117,34 @@ val hideAdsPatch = bytecodePatch(
         // not from the consumers above. Answering "this response has no ad slots" here makes every
         // consumer see none at once, and unlike blanking the response's own field it mutates nothing
         // the playback director holds, which is what reset it when that was tried.
+        // Both accessors answer with the app's own empty slot-list singleton -- the same object the
+        // ad-break renderer above returns when a response carries no ad placements. It is read out of
+        // that method rather than hardcoded, so its declared type is the very list type these two
+        // return, which is what the runtime requires.
         //
-        // Each hook returns an empty list of the method's *own* return type, read from the
-        // fingerprint, so no obfuscated class name enters the injected bytecode; and it falls back to
-        // the response's current list if the app's canonical empty list cannot be reached, which
-        // leaves today's behaviour rather than returning a null a caller may not expect.
-        //
-        // The invoke is built as a value because the instruction is longer than the line limit; the
-        // smali it emits is one line, as it must be.
-        val askForEmptySlots =
-            "invoke-static {p1}, Lapp/ytvr/extension/SpoofStreams;->" +
-                "emptyAdSlots(Ljava/lang/Object;)Ljava/lang/Object;"
-
-        val accessorReturnType = AdSlotAccessorFingerprint.method.returnType
+        // Both methods are **static and tiny**, and that decides the shape of the injection: the
+        // response is `p0`, not `p1`, and they carry no locals, so a `v0` in them *would be* `p0`. Two
+        // measured failures are baked in here: injecting `p1` with a `v0` scratch gave `VerifyError:
+        // Verifier rejected class mgn: vmo mgn.c(zjp): invalid reg index (3) in non-range invoke` and
+        // the app died in Application.onCreate -- it would not open; and an `emptyProtobufList()`
+        // obtained reflectively is a *different* runtime class, so the verifier accepted the
+        // check-cast and ART threw `ClassCastException: wyn cannot be cast to vmo` at the first video.
+        // The cast is a verifier hint, not a conversion. So: reuse `p0`, and return the app's own
+        // object.
+        val emptySlots = emptyList
         AdSlotAccessorFingerprint.method.addInstructions(
             0,
             """
-                const-string v0, "adSlots.c"
-                invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
-                $askForEmptySlots
-                move-result-object v0
-                check-cast v0, $accessorReturnType
-                return-object v0
+                sget-object p0, $emptySlots
+                return-object p0
             """,
         )
 
-        val typedAccessorReturnType = AdSlotTypedAccessorFingerprint.method.returnType
         AdSlotTypedAccessorFingerprint.method.addInstructions(
             0,
             """
-                const-string v0, "adSlots.d"
-                invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
-                $askForEmptySlots
-                move-result-object v0
-                check-cast v0, $typedAccessorReturnType
-                return-object v0
+                sget-object p0, $emptySlots
+                return-object p0
             """,
         )
         // Drop the ad cue-point list the native player hands the app: the server's own statement of

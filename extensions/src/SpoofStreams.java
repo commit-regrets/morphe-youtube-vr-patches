@@ -474,41 +474,6 @@ public final class SpoofStreams {
      * no playback at all, and it is what the previous revision got wrong (it disabled SABR
      * unconditionally, which is fatal once the spoof stops arriving).
      */
-    /**
-     * The app's own canonical empty player-response slot list, for the two accessors that hand one
-     * to every other reader. Returning this is how the "Hide ads" patch answers "this response
-     * carries no ad slots" without mutating the response: the app's generated-message base class
-     * supplies the canonical empty instance, exactly as {@code clearAdSlots} already uses it.
-     *
-     * <p>Never returns null. If the empty list cannot be reached, or there is no response, it falls
-     * back to the response's own slot list -- leaving the app's answer as it was rather than
-     * handing a caller a null it may not expect.
-     */
-    public static Object emptyAdSlots(Object playerResponse) {
-        Object slots = null;
-        try {
-            slots = field(playerResponse, "n");
-            if (playerResponse != null) {
-                for (Class<?> c = playerResponse.getClass(); c != null; c = c.getSuperclass()) {
-                    try {
-                        Object empty = c.getMethod("emptyProtobufList").invoke(null);
-                        if (empty != null) {
-                            return empty;
-                        }
-                    } catch (NoSuchMethodException ignored) {
-                        // keep walking up: it lives on the generated-message base class
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            log(
-                    "ad slots: no empty list for the accessors ("
-                            + t
-                            + "); leaving the response as is");
-        }
-        return slots;
-    }
-
     public static void augmentPlayerResponse(Object playerResponse) {
         try {
             if (playerResponse == null) {
