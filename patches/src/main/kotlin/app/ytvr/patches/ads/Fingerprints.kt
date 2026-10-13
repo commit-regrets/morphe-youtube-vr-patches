@@ -124,9 +124,10 @@ object CuePointListFingerprint : Fingerprint(
  *
  * Found by cross-referencing the field `Lzjp;->n:Lwxq;` over the stock 1.88.10 dex: five sites read
  * it, and only these two were left uncovered by the four hooks in [app.ytvr.patches.ads.hideAdsPatch]
- * (`mkz.a` is neutered as the layout bootstrap, `mqx.r` as the ad-break renderer, and `oqm.K` has no
- * callers at all). `d` is the one every other reader calls -- the neutered `mkz.a` and `mqx.r` three
- * times each -- and `c` is its single-type shorthand.
+ * (`mkz.a` is neutered as the layout bootstrap, `oqm.K` has no callers at all -- and `mqx.r`, the
+ * ad-break list builder, is *not* hooked: it is one of the readers this pair now covers). `d` is the
+ * one every other reader calls -- the neutered `mkz.a` and the unhooked `mqx.r` three times each --
+ * and `c` is its single-type shorthand.
  *
  * Measured 2026-10-13 on the forced-fallback build: with all four of those hooks neutered and the
  * Louvre VR180 video playing, the app still fetched a doubleclick impression and a `pagead/adview`

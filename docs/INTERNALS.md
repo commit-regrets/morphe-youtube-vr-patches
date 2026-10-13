@@ -64,9 +64,18 @@ something we tested.
   (`rgx.g(List)` → `tyj.r(Uri)`, verified to be a ping path rather than playback) is the entry
   point to look at. Suppressing pings is telemetry hygiene, not ad removal — the pre-roll fix does
   not depend on it.
-- **Client-side ad slots** — **verified and done**: the app's own response carries them in `zjp.n`.
-  Anything else that reads ad state from the response (`mgn.g` with `SLOT_TYPE_PLAYER_BYTES`, `mkz.a`,
-  `mqx`) sees the same cleared list.
+- **Client-side ad slots** — **verified 2026-10-13, and the first "done" was wrong**. The app's own
+  response carries them in `zjp.n`, and *five* sites read that field: `mkz.a` (the layout bootstrap),
+  `mqx.r` (the ad-break list builder), `oqm.K` (no callers — dead), and the two accessors `mgn.c` /
+  `mgn.d` that every other reader asks. Clearing the field on the *spoofed* response is not enough on
+  the fallback path, where the app plays its own response: the four consumer hooks answering "no ads"
+  still left a pre-roll — measured with a doubleclick impression and a `pagead/adview` creative fetched
+  while `adBreakRenderer` and `playerBytesLayout` both reported "none". The delivery point is the
+  **accessors**, so `Hide ads` now answers *them* with the app's own empty-list singleton (read out of
+  the renderer method, so it is the type the callers expect). That covers every reader above at once —
+  `mqx.r` and `mgn.g` included — and, unlike blanking the response's field, mutates nothing the
+  playback director holds (blanking it was measured to reset it: `bestVideoFormat=0`,
+  `STOPPAGE_DIRECTOR_RESET_INTERNALLY`).
 - **Quality / resolution preferences, autoplay, background behaviour** — **hypothesis**. These live
   in the player response and the format-selection path; start from the `adaptiveFormats` the VISIONOS
   profile returns and follow what the legacy player selects.

@@ -489,7 +489,7 @@ val extensionPatch = bytecodePatch(
     // ANDROID_VR control and logs the max format height of each, to find which context field
     // unlocks 8K. It costs ~14 *unauthenticated* requests per app start, which is the kind of
     // traffic that gets an IP's unauthenticated innertube requests refused (see
-    // SABR-SPOOF-PLAN.md, 2026-10-11), so it now requires enableDiagnostics as well -- its
+    // docs/INTERNALS.md, 2026-10-11), so it now requires enableDiagnostics as well -- its
     // output is unreadable without the route log anyway -- and stays off in every default build.
     val enableIdentityMatrix by booleanOption(
         key = "enableIdentityMatrix",
