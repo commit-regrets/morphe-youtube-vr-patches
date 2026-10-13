@@ -1,3 +1,23 @@
+## [1.24.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.23.1...v1.24.0) (2026-10-13)
+
+### 🐛 Bug Fixes
+
+* describe what the Extension patch actually provides ([cef1e21](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/cef1e217faa58000d3b9cd1e77923601f1de8811))
+* point at the Extension patch as the ad blocker in the SSAI note ([d0314aa](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/d0314aa8af5a5bc8f2e7b8020efd2b5244610c29))
+* qualify the quality picker's array references (@type/name) ([a7fad4f](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/a7fad4fd43d2a338bbaccfbd61fd8af77d3f63d2))
+* remove the Spoof osName patch (measured ineffective on VR) ([4e8f3ad](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/4e8f3ad0ec6d92a140661a629a4e85c3b9be4fa2))
+* say that the two spoof options ship set to the no-op value ([be145f3](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/be145f3426cfe8d95e3e3e77a1b0b865a045377a))
+* select SponsorBlock by default and drop its stale off-by-default note ([f9611dc](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/f9611dc8470f7253c15468e5d211cd5aea757dd4))
+* single-source the supported app version in Constants.kt ([6a74415](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/6a74415e3f17ba5caa2ac4e751d0832ef34b16d2))
+* state that the Disable QUIC option is off by default ([81d99a6](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/81d99a6eebffff0ba40c87640f42e899722cf063))
+* state the measured result in the Spoof osName note ([96ba4f9](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/96ba4f9dc1dc642ec2b224dde6e237f8092ab982))
+* verify the quality hook's Optional and make its settings row usable ([468b6df](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/468b6df8f312cd8f1335d44839508b038b299cca))
+
+### ✨ New Features
+
+* add the Default video quality patch ([043bee1](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/043bee17388b28eb71879035eaa34657775bb311))
+* force verbose logging in local test builds ([51f7a30](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/51f7a30a5fc132f8aad9c56c1f293a39e10e7986))
+
 ## [1.23.1](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.23.0...v1.23.1) (2026-10-11)
 
 ### 🐛 Bug Fixes
