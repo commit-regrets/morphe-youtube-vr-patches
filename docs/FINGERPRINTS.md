@@ -192,6 +192,8 @@ with jadx on that dex alone, which agreed):
 | Hide ads renderer | returns `List` + constructs `java.util.PriorityQueue` | 1 (of 10 such constructor sites) | `List` + `oqi.F()` + a `new-instance` window |
 | Hide ads request | the log template alone, plus a "returns a reference" guard for the injected `return-object` | 1 | `Lonm;` / 13 parameters / `tyj.s` |
 | Hide ads slot | `Z` + one reference parameter + the class holds the CISA literal + the body calls `isPresent()` | 1 (shape alone: 12) | `Lmuf;` / `a` + the `mgn.g` lookup |
+| Ad-slot accessors | **names**, deliberately: `Lmgn;` `c(Lzjp;)` and `d(Lzjp;Ljava/util/List;)`, both returning the slot list. The shape is not discriminating (a static reference-in/reference-out method is everywhere), and the field they read -- `Lzjp;->n:Lwxq;`, found by cross-referencing it over the dex -- is what identified them: five sites read it, and these two are the accessors every other reader calls (the neutered `mkz.a` and `mqx.r` call `d` three times each) | 2 | `Lmgn;` / `c` and `d` |
+| Ad cue-point callback | the **unobfuscated** media-interfaces name `CuePointDataProviderWrapper$NativeCallback.onCuepointList([B)` -- the server's statement of where the ad breaks are | 1 | not obfuscated |
 | Hide ads layout | unchanged (the `…PlayerAds count: ` string) | 1 | already durable |
 | playability adult | boxed `Boolean`, no parameters, the class holds the `…playability/PlayabilityPolicy` logger literal | 1 | `Lsfp;` / `f` |
 | playability controversial | `Z`, no parameters, same literal, **and the method has a body** | 1 (without the body check: 2) | `Lsfp;` / `k` |
