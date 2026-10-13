@@ -140,6 +140,25 @@ public final class SpoofStreams {
     private static volatile long nextAttemptAt;
 
     /**
+     * One immediate retry, made *before* the cooldown above is armed.
+     *
+     * <p>The cooldown starts at [INITIAL_BACKOFF_MS], five minutes, and a refusal that is a blip
+     * rather than a wall used to cost that whole window: every video inside it played the app's own
+     * stream, so the pre-roll came back and the 8K tier was replaced by whatever the native ladder
+     * offered. Measured 2026-10-13 -- a refused fetch (`http=200`, empty body, then a ~850-byte
+     * error body), a session that streamed stock 1080p, and an ad on play.
+     *
+     * <p>So one retry, less than a second later, is worth the request: it either recovers the
+     * ad-free ladder or says plainly that the server refused twice. It never loops, and it is
+     * capped per process, so a server that is genuinely declining still is not hammered.
+     */
+    private static final long IMMEDIATE_RETRY_DELAY_MS = 700L;
+
+    private static final int MAX_IMMEDIATE_RETRIES = 6;
+    private static final java.util.concurrent.atomic.AtomicInteger IMMEDIATE_RETRIES =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
      * Whether to make the injected 8K tier survive the app's own checks (the `enable8k` patch
      * option, **on** -- it is the 8K option, and the default here matches it).
      *
@@ -459,13 +478,30 @@ public final class SpoofStreams {
                 }
                 byte[] response = fetchSpoofedPlayerResponse(videoId);
                 byte[] message = extractFirstMessage(response);
+                int attempts = 1;
+                if ((message == null || message.length == 0) && immediateRetryAllowed()) {
+                    log(
+                            "augment: the spoofed /player response carried no streamingData ("
+                                    + response.length
+                                    + " bytes); retrying once after "
+                                    + IMMEDIATE_RETRY_DELAY_MS
+                                    + " ms, before the "
+                                    + (INITIAL_BACKOFF_MS / 60000L)
+                                    + "-minute cooldown would take over");
+                    sleepQuietly(IMMEDIATE_RETRY_DELAY_MS);
+                    response = fetchSpoofedPlayerResponse(videoId);
+                    message = extractFirstMessage(response);
+                    attempts = 2;
+                }
                 if (message == null || message.length == 0) {
                     fallBackToNative(
                             videoId,
                             "the spoofed /player response carried no"
                                     + " streamingData ("
                                     + response.length
-                                    + " bytes)");
+                                    + " bytes, after "
+                                    + attempts
+                                    + " attempt(s))");
                     return;
                 }
                 Object parsed = parseStreamingData(message);
@@ -1453,6 +1489,24 @@ public final class SpoofStreams {
         start += prefix.length();
         int end = json.indexOf('"', start);
         return end < 0 ? null : json.substring(start, end);
+    }
+
+    /** Whether another immediate retry is allowed; false once the per-process cap is spent. */
+    private static boolean immediateRetryAllowed() {
+        return IMMEDIATE_RETRIES.incrementAndGet() <= MAX_IMMEDIATE_RETRIES;
+    }
+
+    /**
+     * Sleeps without throwing. Safe here because the caller is already making a blocking network
+     * fetch on whatever thread the app hands the player response to, so this adds well under a
+     * second to work that already waits on the network.
+     */
+    private static void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
