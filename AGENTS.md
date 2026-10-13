@@ -153,13 +153,15 @@ crash fix that was in the source.
 | settings XML | an unqualified `@name` reference (the encoder stores it as a raw string and the hub crashes on inflation), plus a printed list of the hub's rows and summaries, so a row whose advice `CategoryRows` overwrites is visible instead of invisible |
 | bundle mode (run by `build.yml`) | a patch template naming an extension member the extension dex does not have -- the half that needs no stock APK |
 
-**Three of these checks were wrong when first written, and each failed silently rather than noisily** --
+**Four of these checks were wrong when first written, and each failed silently rather than noisily** --
 worth knowing before trusting any check added here. The caller needle was built as `Lsaj;;-><init>(`
-(the inventory's owner already carries its `;`), so *every* hook looked caller-less. The sink pattern
-allowed one register where smali's `iput-object` takes two (`iput-object vA, vB, Lclass;->field:Type`),
-so the cast lint never fired. And a one-character method name (`a`) is a substring of every `.so` ever
-built, so the native-string test "explained" twenty hooks at once. Measure a check against a case it
-*must* catch -- that is what `-SelfTest` now enforces for the lint.
+(the inventory's owner already carries its `;`), so *every* hook looked caller-less. The `inherited` mode
+was handed `Lowner;#method` -- the audit's own site format -- while parsing `Lowner;->method`, so no
+override was ever found. The sink pattern allowed one register where smali's `iput-object` takes two
+(`iput-object vA, vB, Lclass;->field:Type`), so the cast lint never fired. And a one-character method name
+(`a`) is a substring of every `.so` ever built, so the native-string test "explained" twenty hooks at
+once. Measure a check against a case it *must* catch: `-SelfTest` now enforces that for the lint, and the
+reachability list is the check's own report of what it could not explain.
 
 Two PowerShell traps are baked into that script's shape, because both cost time here: a function must
 print **only** what it means to return (javac's chatter joined the returned classpath and every later
