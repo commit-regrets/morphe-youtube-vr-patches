@@ -109,6 +109,51 @@ val hideAdsPatch = bytecodePatch(
                 return-void
             """,
         )
+
+        // The delivery path itself: the two accessors every other reader asks for the ad-slot list.
+        // Measured 2026-10-13 on the forced-fallback build (Louvre VR180): with the four hooks above
+        // neutered, the app still fetched a doubleclick impression and a `pagead/adview` creative, and
+        // these two were reached four times around it -- so the schedule comes from what they return,
+        // not from the consumers above. Answering "this response has no ad slots" here makes every
+        // consumer see none at once, and unlike blanking the response's own field it mutates nothing
+        // the playback director holds, which is what reset it when that was tried.
+        //
+        // Each hook returns an empty list of the method's *own* return type, read from the
+        // fingerprint, so no obfuscated class name enters the injected bytecode; and it falls back to
+        // the response's current list if the app's canonical empty list cannot be reached, which
+        // leaves today's behaviour rather than returning a null a caller may not expect.
+        //
+        // The invoke is built as a value because the instruction is longer than the line limit; the
+        // smali it emits is one line, as it must be.
+        val askForEmptySlots =
+            "invoke-static {p1}, Lapp/ytvr/extension/SpoofStreams;->" +
+                "emptyAdSlots(Ljava/lang/Object;)Ljava/lang/Object;"
+
+        val accessorReturnType = AdSlotAccessorFingerprint.method.returnType
+        AdSlotAccessorFingerprint.method.addInstructions(
+            0,
+            """
+                const-string v0, "adSlots.c"
+                invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
+                $askForEmptySlots
+                move-result-object v0
+                check-cast v0, $accessorReturnType
+                return-object v0
+            """,
+        )
+
+        val typedAccessorReturnType = AdSlotTypedAccessorFingerprint.method.returnType
+        AdSlotTypedAccessorFingerprint.method.addInstructions(
+            0,
+            """
+                const-string v0, "adSlots.d"
+                invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
+                $askForEmptySlots
+                move-result-object v0
+                check-cast v0, $typedAccessorReturnType
+                return-object v0
+            """,
+        )
         // Drop the ad cue-point list the native player hands the app: the server's own statement of
         // where the ad breaks are. This is the fifth client-side path, and the only one the four
         // hooks above do not cover -- the removed SSAI patch's fourth hook. It reports itself first,

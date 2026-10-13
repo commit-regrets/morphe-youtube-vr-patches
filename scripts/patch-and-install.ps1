@@ -90,6 +90,13 @@ param(
     # only the VISIONOS fetch/swap is skipped. The 8K experiment.
     [switch] $NativeFormats,
 
+    # Force the native fallback on every video (development only): the state a refused spoof leaves
+    # the app in, and the only state in which its client-side ad machinery runs at all. Measured
+    # 2026-10-13: with the spoof healthy the app asks for ad breaks four times per video and the
+    # "Hide ads" hooks answer "none", so the fallback's ad path cannot be observed -- and waiting for
+    # YouTube to refuse the spoof is not a test plan. It changes nothing except which response plays.
+    [switch] $ForceFallback,
+
     # Patches that MUST end up applied. Catches the silent failure mode where a newer app version
     # is outside the declared AppTarget in Constants.kt, so the patcher *skips* the patch instead
     # of failing: without this check the result is an unpatched app and a green-looking run.
@@ -346,6 +353,7 @@ if ($Diagnostics) { $extensionOptions['enableDiagnostics'] = $true }
 if ($VerboseLogging) { $extensionOptions['forceVerboseLogging'] = $true }
 if ($IdentityProbe) { $extensionOptions['enableIdentityMatrix'] = $true }
 if ($NativeFormats) { $extensionOptions['enableNativeFormats'] = $true }
+if ($ForceFallback) { $extensionOptions['forceFallback'] = $true }
 if ($extensionOptions.Count -gt 0) {
     $patchOptions['Extension'] = $extensionOptions
     $enableStep1 += 'Extension'

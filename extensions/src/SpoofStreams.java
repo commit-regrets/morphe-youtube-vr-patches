@@ -159,6 +159,29 @@ public final class SpoofStreams {
             new java.util.concurrent.atomic.AtomicInteger();
 
     /**
+     * Development switch: take the native fallback on every video, without asking the server.
+     *
+     * <p>This is the state a refused spoof leaves the app in, and the only state in which its
+     * client-side ad machinery runs. With the spoof healthy the app asks for ad breaks and the
+     * "Hide ads" hooks answer "none" (measured 2026-10-13: four calls per video, no ad), so the
+     * fallback's ad path cannot be observed at all -- and waiting for YouTube to refuse the spoof
+     * is not a test plan, while inducing a refusal is the very traffic that causes one. Off in
+     * every default build: it changes nothing except which of the two responses playback ends up
+     * using.
+     */
+    private static volatile boolean forceFallback;
+
+    /**
+     * Set once from the patched {@code Application.onCreate}, only when the development option is
+     * on.
+     */
+    public static void forceFallback(boolean on) {
+        forceFallback = on;
+        log(
+                "augment: forced fallback is ON -- every video uses the app's own response (the ad path)");
+    }
+
+    /**
      * Whether to make the injected 8K tier survive the app's own checks (the `enable8k` patch
      * option, **on** -- it is the 8K option, and the default here matches it).
      *
@@ -451,6 +474,41 @@ public final class SpoofStreams {
      * no playback at all, and it is what the previous revision got wrong (it disabled SABR
      * unconditionally, which is fatal once the spoof stops arriving).
      */
+    /**
+     * The app's own canonical empty player-response slot list, for the two accessors that hand one
+     * to every other reader. Returning this is how the "Hide ads" patch answers "this response
+     * carries no ad slots" without mutating the response: the app's generated-message base class
+     * supplies the canonical empty instance, exactly as {@code clearAdSlots} already uses it.
+     *
+     * <p>Never returns null. If the empty list cannot be reached, or there is no response, it falls
+     * back to the response's own slot list -- leaving the app's answer as it was rather than
+     * handing a caller a null it may not expect.
+     */
+    public static Object emptyAdSlots(Object playerResponse) {
+        Object slots = null;
+        try {
+            slots = field(playerResponse, "n");
+            if (playerResponse != null) {
+                for (Class<?> c = playerResponse.getClass(); c != null; c = c.getSuperclass()) {
+                    try {
+                        Object empty = c.getMethod("emptyProtobufList").invoke(null);
+                        if (empty != null) {
+                            return empty;
+                        }
+                    } catch (NoSuchMethodException ignored) {
+                        // keep walking up: it lives on the generated-message base class
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            log(
+                    "ad slots: no empty list for the accessors ("
+                            + t
+                            + "); leaving the response as is");
+        }
+        return slots;
+    }
+
     public static void augmentPlayerResponse(Object playerResponse) {
         try {
             if (playerResponse == null) {
@@ -467,6 +525,14 @@ public final class SpoofStreams {
                     reported = true;
                     log("augment: no video id (fields g=" + field(playerResponse, "g") + ")");
                 }
+                return;
+            }
+
+            if (forceFallback) {
+                fallBackToNative(
+                        videoId,
+                        "the forced-fallback development switch is on, so the app's own response is"
+                                + " used and its ad path is exercised");
                 return;
             }
 

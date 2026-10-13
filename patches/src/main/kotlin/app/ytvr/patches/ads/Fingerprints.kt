@@ -118,3 +118,37 @@ object CuePointListFingerprint : Fingerprint(
     parameters = listOf("[B"),
     returnType = "V",
 )
+
+/**
+ * The two accessors that hand the ad-slot list of a player response to every other reader.
+ *
+ * Found by cross-referencing the field `Lzjp;->n:Lwxq;` over the stock 1.88.10 dex: five sites read
+ * it, and only these two were left uncovered by the four hooks in [app.ytvr.patches.ads.hideAdsPatch]
+ * (`mkz.a` is neutered as the layout bootstrap, `mqx.r` as the ad-break renderer, and `oqm.K` has no
+ * callers at all). `d` is the one every other reader calls -- the neutered `mkz.a` and `mqx.r` three
+ * times each -- and `c` is its single-type shorthand.
+ *
+ * Measured 2026-10-13 on the forced-fallback build: with all four of those hooks neutered and the
+ * Louvre VR180 video playing, the app still fetched a doubleclick impression and a `pagead/adview`
+ * creative, and the two accessors were reached four times around it. That is what makes them the
+ * delivery path rather than the consumers above them.
+ *
+ * The class and method names are obfuscated and expected to change between versions, so both
+ * fingerprints pin the *whole shape* -- static, the response (plus, for `d`, the slot-type list), and
+ * a reference return -- and a rename fails the patch loudly at patch time instead of hooking a wrong
+ * method silently. The injected `check-cast` reads its type from the method's own return type, so no
+ * obfuscated name is written into the bytecode.
+ */
+object AdSlotAccessorFingerprint : Fingerprint(
+    definingClass = "Lmgn;",
+    name = "c",
+    parameters = listOf("Lzjp;"),
+    returnType = "Lvmo;",
+)
+
+object AdSlotTypedAccessorFingerprint : Fingerprint(
+    definingClass = "Lmgn;",
+    name = "d",
+    parameters = listOf("Lzjp;", "Ljava/util/List;"),
+    returnType = "Lvmo;",
+)
