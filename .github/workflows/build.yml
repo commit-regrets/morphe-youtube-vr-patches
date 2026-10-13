@@ -23,6 +23,17 @@ on:
       - 'gradlew'
       - 'gradlew.bat'
       - '.github/workflows/build.yml'
+  # Pull requests *into* develop -- in practice the Dependabot update PRs -- are built before they
+  # are merged. Without this they carried no checks at all: their head branch is a `dependabot/*`
+  # branch, so the push trigger above never sees it, and the first build of a dependency bump was
+  # the one that ran on develop *after* the merge (measured: the four bumps opened on 2026-10-13
+  # all showed `checks=0`).
+  #
+  # No `paths` filter here on purpose: the point is that nothing merges into develop uncompiled,
+  # and duplicating the list above would give it a second place to drift.
+  pull_request:
+    branches:
+      - develop
   workflow_dispatch:
 
 concurrency:
