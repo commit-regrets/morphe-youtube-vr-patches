@@ -147,10 +147,19 @@ crash fix that was in the source.
 | check | the incident it catches |
 |---|---|
 | sources vs the shipped extension dex | a class or static method in `extensions/src` that the APK's extension dex does not have -- an APK built from different sources than the ones on disk (the stale-bundle incident above) |
-| reachability | an app method we injected into that no method calls and whose name is in no native library. A **review list, never a failure**: `onBackPressed` overrides and Cronet's JNI callback are legitimately caller-less. It is the check that would have flagged the DRC patch on day one -- installed perfectly, read by nothing |
-| cast lint | an injected block whose call returns `Ljava/lang/Object;` with no `check-cast` in the same block: the `saj` VerifyError, which launches fine and dies at the first video |
+| patch defaults vs `$RequirePatches` | a default-on patch the install script does not require, so the patcher could skip it silently. This drifted by hand twice on 2026-10-13 (the SSAI removal, then QUIC becoming default-on) |
+| reachability | an app method we injected into that nothing calls. The audit resolves the legitimate shapes itself -- a supertype declaration the method overrides (a lifecycle callback, or Cronet's request factory), a call site or method handle (a lambda), and a native library containing a name long enough to mean anything -- and only complains about what is left. `tools/dexaudit/known-callerless.txt` is the escape hatch for a genuine case it cannot prove, and it is **empty**: the 2026-10-13 build's 26 hooks are all explained by the tool. This is the check that would have flagged the DRC patch on day one, which overrode nothing and was read by nothing |
+| cast lint | an object result stored into a field of another type with no `check-cast`: the `saj` VerifyError, which launches fine and dies at the first video. `-SelfTest` points the lint at the pre-fix fixture and fails if it does not fire -- CI runs that, because a lint that cannot fire is worse than none |
 | settings XML | an unqualified `@name` reference (the encoder stores it as a raw string and the hub crashes on inflation), plus a printed list of the hub's rows and summaries, so a row whose advice `CategoryRows` overwrites is visible instead of invisible |
 | bundle mode (run by `build.yml`) | a patch template naming an extension member the extension dex does not have -- the half that needs no stock APK |
+
+**Three of these checks were wrong when first written, and each failed silently rather than noisily** --
+worth knowing before trusting any check added here. The caller needle was built as `Lsaj;;-><init>(`
+(the inventory's owner already carries its `;`), so *every* hook looked caller-less. The sink pattern
+allowed one register where smali's `iput-object` takes two (`iput-object vA, vB, Lclass;->field:Type`),
+so the cast lint never fired. And a one-character method name (`a`) is a substring of every `.so` ever
+built, so the native-string test "explained" twenty hooks at once. Measure a check against a case it
+*must* catch -- that is what `-SelfTest` now enforces for the lint.
 
 Two PowerShell traps are baked into that script's shape, because both cost time here: a function must
 print **only** what it means to return (javac's chatter joined the returned classpath and every later

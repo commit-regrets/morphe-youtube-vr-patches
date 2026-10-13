@@ -369,16 +369,47 @@ if (-not $NoClone -and -not $OfficialClone) {
 foreach ($extra in $ExtraPatches) { $enableStep1 += $extra }
 # Naming the patches whose options are set is harmless (they are default-enabled anyway) and it
 # keeps the printed command readable now that the values live in the options file.
-# The bundle must be newer than the sources it was built from. A .mpp older than patches/src or
-# extensions/src is a stale build, and a stale build is not visible in a green `Applied:` list: on
-# 2026-10-13 a review agent had the extension sources moved aside while `buildAndroid` ran, so the
-# bundle that got installed did not contain the crash fix the source did. Timestamps are enough.
-$newestSource = Get-ChildItem (Join-Path $PSScriptRoot '..\patches\src'), (Join-Path $PSScriptRoot '..\extensions\src') -Recurse -File |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if ($newestSource -and (Get-Item $bundle).LastWriteTime -lt $newestSource.LastWriteTime) {
-    Fail ("the bundle is older than the sources: {0} was built {1:yyyy-MM-dd HH:mm:ss}, {2} changed {3:yyyy-MM-dd HH:mm:ss}. Run .\gradlew.bat buildAndroid first" -f `
-        (Split-Path $bundle -Leaf), (Get-Item $bundle).LastWriteTime, $newestSource.Name, $newestSource.LastWriteTime)
+# The bundle must correspond to the sources on disk, and a green `Applied:` list cannot tell you when
+# it does not: on 2026-10-13 a review agent had the extension sources moved aside while `buildAndroid`
+# ran, so the bundle that got installed did not contain the crash fix the source did.
+#
+# Timestamps alone are the wrong signal -- a checkout or a rebase rewrites every mtime without changing
+# a byte -- so this compares a hash of the sources with the hash this script recorded when it last
+# patched, together with the bundle's own hash. Edited sources + an unchanged bundle is the stale case;
+# a rebuild changes the bundle's hash and clears it.
+function Get-SourcesHash {
+    $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $files = Get-ChildItem (Join-Path $root 'patches\src'), (Join-Path $root 'extensions\src') -Recurse -File |
+        Sort-Object FullName
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($file in $files) {
+        [void]$builder.Append($file.FullName.Substring($root.Length)).Append(':')
+        [void]$builder.Append((Get-FileHash $file.FullName -Algorithm SHA256).Hash)
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $digest = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($builder.ToString()))
+    return (([System.BitConverter]::ToString($digest) -replace '-', '').Substring(0, 16))
 }
+
+$stateDir = Join-Path $PSScriptRoot '..\build\probe\audit'
+New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+$stateFile = Join-Path $stateDir 'bundle-sources.sha'
+$sourcesHash = Get-SourcesHash
+$bundleHash = (Get-FileHash $bundle -Algorithm SHA256).Hash
+if (Test-Path $stateFile) {
+    $recorded = ((Get-Content $stateFile -Raw).Trim() -split '\s+')
+    if ($recorded[0] -ne $sourcesHash -and $recorded[1] -eq $bundleHash) {
+        Fail ("the bundle was built from different sources: last patched at source hash {0}, sources are now {1}, and the bundle has not changed. Run .\gradlew.bat buildAndroid first" -f $recorded[0], $sourcesHash)
+    }
+} else {
+    # First run here: no recorded hash, so fall back to timestamps as a note rather than a stop.
+    $newestSource = Get-ChildItem (Join-Path $PSScriptRoot '..\patches\src'), (Join-Path $PSScriptRoot '..\extensions\src') -Recurse -File |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($newestSource -and (Get-Item $bundle).LastWriteTime -lt $newestSource.LastWriteTime) {
+        Write-Host "   note: the bundle is older than $($newestSource.Name); if the sources were edited since the last build, rebuild" -ForegroundColor Yellow
+    }
+}
+Set-Content -Path $stateFile -Value "$sourcesHash $bundleHash" -Encoding ascii
 
 $result1 = Invoke-Patch -Bundle $bundle -InputApk $Apk -OutputApk $step1 `
     -Enable $enableStep1 -Disable $disableStep1 -PatchOptions $patchOptions
@@ -497,7 +528,7 @@ if ($OfficialClone) {
 if (-not $SkipAudit) {
     Write-Host "`n[audit] checking $final against the sources" -ForegroundColor Cyan
     $auditScript = Join-Path $PSScriptRoot 'audit-patched-apk.ps1'
-    & pwsh -NoProfile -File $auditScript -Apk (Resolve-Path $final).Path -Root (Resolve-Path (Join-Path $PSScriptRoot '..')).Path -SkipXml -SkipReach
+    & pwsh -NoProfile -File $auditScript -Apk (Resolve-Path $final).Path -Root (Resolve-Path (Join-Path $PSScriptRoot '..')).Path -SkipXml -SkipReach -SelfTest
     if ($LASTEXITCODE -ne 0) { Fail 'the audit failed: see the FAIL lines above (the patched APK is still on disk)' }
 }
 

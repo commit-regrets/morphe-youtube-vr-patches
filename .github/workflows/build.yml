@@ -97,7 +97,7 @@ jobs:
           $mpp = Get-ChildItem patches/build/libs/*.mpp |
             Where-Object { $_.Name -notmatch 'sources|javadoc' } |
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          pwsh -NoProfile -File scripts/audit-patched-apk.ps1 -Bundle $mpp.FullName
+          pwsh -NoProfile -File scripts/audit-patched-apk.ps1 -Bundle $mpp.FullName -SelfTest
 
       - name: Upload the bundle
         uses: actions/upload-artifact@v7
