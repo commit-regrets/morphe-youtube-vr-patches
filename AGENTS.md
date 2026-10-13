@@ -54,6 +54,17 @@ pwsh -NoProfile -File scripts\patch-and-install.ps1 -Apk apk\com.google.android.
   The extension's javac runs `-Xlint:all` (warnings, not errors).
 
 * A green `Applied:` list is **not** proof the right method was patched. Verify on the device.
+* **Launching is not playing.** The app handles watch URLs, so playback starts with no taps:
+
+  ```powershell
+  adb shell am start -a android.intent.action.VIEW -d "https://www.youtube.com/watch?v=aqz-KE-bpKQ" `
+      -n app.morphe.android.youtube/com.google.android.apps.youtube.vr.activities.YouTubeVrActivity
+  ```
+
+  That is how the `saj` VerifyError above was reproduced (`adb logcat -b crash` names it, and the
+  process restarts, so a fresh PID is not proof of health) and how `starting videos at 4320p` was
+  read back. A build that launches can still be dead at the first video: the player's class verifies
+  when it is first *used*, not when the app starts.
 
 ## Device access
 
@@ -126,6 +137,8 @@ from the device.
 | the row binder is `a(<holder>)`; find it by the fact that it calls `TextView.setText(CharSequence)`, and its class by the literal `"Preference already has a SummaryProvider set."` | the only reason the category colouring works |
 | a `ListPreference` must not share a key with a Boolean-writing switch: `SharedPreferencesImpl.getString` throws `ClassCastException` | opening the screen crashed; the pickers use `ytvr_mod_sb_behaviour_*` and the switch values are migrated |
 | dialogs are never composited into the VR panel (`AlertDialog.show()` succeeds, nothing appears) | picker UI must not be a window |
+| a `ListPreference` row is **inert here as well as invisible** | the app replaces androidx's preference adapter with its own, and that adapter dispatches the row click itself and does nothing for a widget type it does not know; androidx's picker is an `AlertDialog` on top of that. Either way the row renders and tapping it opens nothing — which is exactly how it reads from the headset. A setting row must be a plain `Preference` whose picker the extension builds **inside the row** (`CategoryRows`), which is how the behaviour pickers and `Default video quality` work (measured 2026-10-13, the "tapping Default video quality opens nothing" report) |
+| an injected call that hands back `Object` must be followed by a `check-cast` to the field's own type | the class verifies at first *use*, so the app still launches and the failure reads as "playing a video crashes the app". Measured 2026-10-13: `VideoQuality.fixInitialResolution` returning `Ljava/lang/Object;` into `saj.j` (a `j$.util.Optional`) gave `VerifyError: Verifier rejected class saj: … [0x19] register v6 has type Reference: java.lang.Object but expected Precise Reference: j$.util.Optional`, from `sij.a` → `saj.<init>` on the main thread. The cast is a verifier hint, not a conversion |
 | views added to the window's **decor** are not drawn either — only the app's own content subtree is rendered | picker UI must live *inside a row* |
 | the row's text column is a **`RelativeLayout`** (title, then summary with `layout_below="@android:id/title"`) | `LinearLayout.LayoutParams` are ignored and the view lands on top of the summary |
 | the row hook runs for **every row of every settings screen** | clearing a click listener on a row you do not recognise removes the app's own handler (this broke the "Patch settings" row once); return immediately for foreign rows |
@@ -133,6 +146,7 @@ from the device.
 | every injected block in Application.onCreate is inserted at index 0, so the **last** insertion runs **first** | ordering is inverted: the verbose-log gate must be the last edit this patch makes, and a dump emitted before the gate opens must be re-emitted once it does (storeReady/dumpLogged in SponsorBlockSettings) |
 | the two hosts put the patcher's **session** in different places, on the same patcher version: the CLI keeps one directory holding both the decoded tree (`temporaryFilesPath/apk/resources/…`) and the workspace (`PatcherConfig`: `fileWorkspace = temporaryFilesPath.resolve("workspace")`), while Morphe Manager deliberately splits them — tree under `cacheDir/patcher` where `cacheDir = fs.tempDir = app.getDir("ephemeral")`, workspace under `context.cacheDir/patch-workspace` ("Not under tempDir because the patcher wipes that directory when it starts") | anything deriving a path from `fileWorkspace.parentFile` works from the CLI and fails under Manager. **Found from a real Manager run** (Manager 1.35.0, patcher 1.15.1): `PatchException: Patch settings: no settings preferences XML under …/cache; looked for settings_prefs.xml, panel2_settings_prefs.xml` at `SettingsXml.kt:54`, from `sponsorBlockPatch$lambda$0$11` (`SponsorBlockPatch.kt:1586`) — the whole SponsorBlock pass aborted, so the user got no settings screens. The named path is the workspace's *parent* (`…/cache`), one level below the app-data root that covers both `app_ephemeral/…` and `cache/…` — two levels above the workspace, which is what `SettingsXmlKt.restructureSettingsXmls` now walks (bounded ancestors, nearest first, every root named in the exception) |
 | a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension read `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. **Fixed the same day**: `SponsorBlockSettings.modPreferences` now reads and writes `youtube.xml` too, so the widgets own every row again; `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, so the gate follows the tap without waiting for the widget's apply |
+| a settings-XML `@` reference must be **full `@type/name`**: the resource encoder stores an unqualified one (`@ytvr_vq_entries`) as a raw *string* instead of failing, and the attribute's compiled value becomes resource id 0 | opening the "Patch settings" hub crashed with `Resources$NotFoundException: Text array resource ID #0x0` inside `ListPreference` inflation (2026-10-13, the Default video quality picker's `android:entries`/`android:entryValues`). The encoder prints no warning, and a raw `rg -a` over the APK cannot catch it — the compiled XML's string pool holds the literal either way only when unresolved, so the check is a string-pool parse: the hub's pool must contain no `@ytvr_vq` literal, and resources.arsc must hold both array names |
 
 ## SponsorBlock notes
 
@@ -164,6 +178,15 @@ above hangs off it.
   hooks are installed *and* the gate's initial default, so a development build logs from its first
   line with no tap, while a build that never asks for the diagnostics (CI, a release, an end user
   applying the bundle) is silent. A stored choice outranks the option in both directions.
+* **`-VerboseLogging` is the local-test switch, and it is the one that beats the stored value.** The
+  `Force verbose logging (development builds)` option opens the gate *past* the row's stored value --
+  which is the thing `-Diagnostics` cannot do, and why a device whose row was switched off once stays
+  silent in a diagnostics build (the value is sticky across `adb install -r`; measured 2026-10-13,
+  and it cost a session's worth of blind device runs). It installs no extra hooks and makes no probe
+  request, so it is the cheap everyday build: `patch-and-install.ps1 -VerboseLogging`. A tap on the
+  row still silences that session, and the next launch is loud again. Like `-Diagnostics` it also
+  prints the two listing lines (the preference files, and which of them holds the `ytvr_mod` keys) —
+  those are log lines, not hooks, and they are what tells you *where* a setting went.
 * **One gate.** `VerboseLog.log(tag, message)` is the only place in `extensions/src` that prints;
   every class's `log(String)` is a one-line delegation to it, and `android.util.Log` is used nowhere
   in the extension. A closed gate reads one volatile field and returns before the message is
@@ -194,12 +217,16 @@ anchors and the anchors that *failed* are in `docs/FINGERPRINTS.md`.
 
 One operational rule belongs here, because ignoring it costs an outage: the 8K path depends on a
 response YouTube can withhold at any time, so the fetch fails open (playback keeps working without 8K).
-Two different switches are easy to conflate here. `-Diagnostics` is the cheap one and is self-contained:
-the innertube route log, the media-request log and **one** fixed-video probe fetch per launch
-(`SpoofStreams.probe()`). The ~14-request identity **matrix** is its own option, `-IdentityProbe`
-(default off, and the install script refuses it without `-Diagnostics`, whose route log its output
-needs) -- that is unauthenticated traffic of the kind that gets an IP's innertube requests refused, so
-it stays off in every default build and must not be re-hammered.
+Three switches are easy to conflate here, cheapest first. `-VerboseLogging` only logs (no extra hooks,
+no network): it is what a local test build wants, and it is also the only one that ignores the
+"Verbose logging" row's stored value. `-Diagnostics` adds the innertube route log, the media-request
+log and **one** fixed-video probe fetch per launch (`SpoofStreams.probe()`). The ~14-request identity
+**matrix** is its own option, `-IdentityProbe` (default off, and the install script refuses it without
+`-Diagnostics`, whose route log its output needs) -- that is unauthenticated traffic of the kind that
+gets an IP's innertube requests refused, so it stays off in every default build and must not be
+re-hammered. All three default to **off**, and a default apply injects none of them: measured
+2026-10-13 on a no-option build, the patched `Application.onCreate` carries exactly one `VerboseLog`
+call, `init`, so a release is silent unless the viewer's own row says otherwise.
 
 ## Releases and CI
 

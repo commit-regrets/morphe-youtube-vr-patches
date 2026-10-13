@@ -12,6 +12,13 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# The mirror only reads this repository (checkout) and pushes to GitLab with the deploy key
+# above, so the token needs nothing beyond reading the code. Pinned explicitly because the
+# repository default is broader -- found by CodeQL's actions/missing-workflow-permissions as
+# soon as the `actions` language was added to codeql.yml.
+permissions:
+  contents: read
+
 # Never cancel a mirror half-way; a stale mirror is worse than a slow one.
 concurrency:
   group: mirror-gitlab

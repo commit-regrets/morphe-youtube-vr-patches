@@ -39,15 +39,14 @@ private const val STREAMING_DATA_PROTO =
     "Lcom/google/protos/youtube/api/innertube/StreamingDataOuterClass\$StreamingData;"
 
 /** True when [this] stores a reference of [type] into a field of its own [classDef]. */
-private fun Method.writesOwnFieldOfType(classDef: ClassDef, type: String): Boolean =
-    implementation?.instructions?.any { instruction ->
-        instruction.opcode == Opcode.IPUT_OBJECT &&
-            (instruction as? ReferenceInstruction)?.reference.let { reference ->
-                reference is FieldReference &&
-                    reference.definingClass == classDef.type &&
-                    reference.type == type
-            }
-    } ?: false
+private fun Method.writesOwnFieldOfType(classDef: ClassDef, type: String): Boolean = implementation?.instructions?.any { instruction ->
+    instruction.opcode == Opcode.IPUT_OBJECT &&
+        (instruction as? ReferenceInstruction)?.reference.let { reference ->
+            reference is FieldReference &&
+                reference.definingClass == classDef.type &&
+                reference.type == type
+        }
+} ?: false
 
 /**
  * Matches the VideoStreamingData builder that takes the PlayerResponse proto: its one-parameter
@@ -105,8 +104,7 @@ private val platypusDecisionFingerprint = Fingerprint(
  * registers of a dex frame, so with `registerCount` registers and `parameterTypes.size`
  * parameters, parameter 0 sits at `registerCount - parameterTypes.size`.
  */
-private fun Method.parameterRegister(index: Int): Int =
-    implementation!!.registerCount - parameterTypes.size + index
+private fun Method.parameterRegister(index: Int): Int = implementation!!.registerCount - parameterTypes.size + index
 
 /**
  * A no-argument boolean call made directly on one of the method's own parameters.
@@ -219,8 +217,10 @@ private val dataSpecBuildFingerprint = Fingerprint(
                     "I" -> readsMethod = true
                 }
             } else if (reference is MethodReference &&
-                (instruction.opcode == Opcode.INVOKE_DIRECT ||
-                    instruction.opcode == Opcode.INVOKE_DIRECT_RANGE)
+                (
+                    instruction.opcode == Opcode.INVOKE_DIRECT ||
+                        instruction.opcode == Opcode.INVOKE_DIRECT_RANGE
+                    )
             ) {
                 if (reference.name == "<init>" &&
                     reference.parameterTypes.map { it.toString() } == DATA_SPEC_CONSTRUCTOR_PARAMETERS
@@ -238,8 +238,7 @@ private val dataSpecBuildFingerprint = Fingerprint(
 private const val UMP_LITERAL = "ump"
 
 /** The `this.<final boolean> = <arg> instanceof <type>` shape, which is the UMP rewrite flag. */
-private fun Method.hasInstanceOfFeedingFinalBooleanField(classDef: ClassDef): Boolean =
-    instanceOfFedBooleanWriteIndices(classDef).isNotEmpty()
+private fun Method.hasInstanceOfFeedingFinalBooleanField(classDef: ClassDef): Boolean = instanceOfFedBooleanWriteIndices(classDef).isNotEmpty()
 
 /**
  * Indices of the writes that store an `instance-of` result into a `Z` field of this method's own
@@ -365,10 +364,14 @@ internal fun isSkipAdCountdown(method: Method): Boolean {
         when {
             // setText(CharSequence) or setText(CharSequence, TextView$BufferType)
             reference.name == "setText" &&
-                (singleCharSequence ||
-                    (parameterTypes.size == 2 &&
-                        parameterTypes[0].toString() == "Ljava/lang/CharSequence;" &&
-                        parameterTypes[1].toString() == "Landroid/widget/TextView\$BufferType;")) ->
+                (
+                    singleCharSequence ||
+                        (
+                            parameterTypes.size == 2 &&
+                                parameterTypes[0].toString() == "Ljava/lang/CharSequence;" &&
+                                parameterTypes[1].toString() == "Landroid/widget/TextView\$BufferType;"
+                            )
+                    ) ->
                 writesText = true
 
             reference.name == "setContentDescription" && singleCharSequence ->
@@ -415,8 +418,10 @@ internal val skipAdCountdownFingerprints = listOf(
 @Suppress("unused")
 val extensionPatch = bytecodePatch(
     name = "Extension",
-    description = "Injects the YouTube VR patch extension used by streaming patches.",
-    default = true
+    description = "Injects the extension the other patches run through: its streaming spoof " +
+        "is what removes the pre-roll (ad-free playback) and provides the 8K format " +
+        "support. Turning this patch off restores ads.",
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -452,6 +457,18 @@ val extensionPatch = bytecodePatch(
         key = "enableDiagnostics",
         default = false,
         title = "Verbose diagnostics (development only)",
+    )
+
+    // For local test builds: log from the first line and *ignore* the "Verbose logging" row's
+    // stored value, which is otherwise the winner (it is sticky across `adb install -r`, so a
+    // device that once had the row switched off stays silent even in a diagnostics build -- the
+    // gate's default only loses to a stored value, by design). Kept separate from
+    // enableDiagnostics on purpose: this installs no extra hooks and makes no probe request, so the
+    // everyday "build it and watch the log" loop costs nothing but the lines themselves.
+    val forceVerboseLogging by booleanOption(
+        key = "forceVerboseLogging",
+        default = false,
+        title = "Force verbose logging (development builds)",
     )
 
     // One-shot identity matrix: fetches two videos under several candidate identities plus an
@@ -511,9 +528,11 @@ val extensionPatch = bytecodePatch(
 
     // The dex is a bundle resource; the anonymous class makes the bundle's own
     // class loader resolve it, whichever class loader loaded the patches.
-    extendWith(Supplier {
-        object {}.javaClass.getResourceAsStream("/ytvr-extension.dex")
-    })
+    extendWith(
+        Supplier {
+            object {}.javaClass.getResourceAsStream("/ytvr-extension.dex")
+        },
+    )
 
     execute {
         // The log gate, at the earliest point there is. `init` reads the "Verbose logging" row's
@@ -533,20 +552,28 @@ val extensionPatch = bytecodePatch(
         // and why the settings store re-emits its dump when the gate opens. Nothing depends on
         // that order: `VerboseLog` is idempotent and re-reads, and the dump is printed once,
         // whichever of the two calls opens the gate.
-        fun injectLogGate() = applicationOnCreateFingerprint.method.addInstructions(
-            0,
+        //
+        // `forceVerboseLogging` goes *in* the block before `init`, because it is the one thing that
+        // must beat the row's stored value rather than sit under it: a local test build on a device
+        // whose "Verbose logging" row was switched off once would otherwise stay silent. `init`
+        // consults that flag too, so the order inside the block is about the listing it prints, not
+        // about whether the gate ends up open.
+        fun injectLogGate() {
+            val gate = mutableListOf<String>()
             if (enableDiagnostics == true) {
-                """
-                    const/4 v0, 0x1
-                    invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->setDefaultEnabled(Z)V
-                    invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
-                """.trimIndent()
-            } else {
-                """
-                    invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V
-                """.trimIndent()
+                gate += "const/4 v0, 0x1"
+                gate += "invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->setDefaultEnabled(Z)V"
             }
-        )
+            if (forceVerboseLogging == true) {
+                // Before `init`, deliberately: `init` consults the same flag, so the gate is open
+                // either way, and going first also makes its development-build listing of the
+                // preference files and the files holding the `ytvr_mod` keys run.
+                gate += "const/4 v0, 0x1"
+                gate += "invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->forceEnabled(Z)V"
+            }
+            gate += "invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V"
+            applicationOnCreateFingerprint.method.addInstructions(0, gate.joinToString("\n"))
+        }
 
         // Give the app a task label. Horizon OS's library names a *running* app from the store's
         // record for its package; a re-signed, renamed build has none, and the fallback is the
@@ -555,7 +582,7 @@ val extensionPatch = bytecodePatch(
         // the spoof gate: it is about the launcher, not about ads.
         applicationOnCreateFingerprint.method.addInstructions(
             0,
-            "invoke-static {p0}, Lapp/ytvr/extension/TaskLabel;->install(Ljava/lang/Object;)V"
+            "invoke-static {p0}, Lapp/ytvr/extension/TaskLabel;->install(Ljava/lang/Object;)V",
         )
 
         // The player-response hook. Two modes, and only two:
@@ -575,19 +602,19 @@ val extensionPatch = bytecodePatch(
         if (enableNativeFormats == true) {
             videoStreamingDataCtorFingerprint.method.addInstructions(
                 0,
-                "invoke-static {p1}, Lapp/ytvr/extension/SpoofStreams;->nativeFormatsNoSabr(Ljava/lang/Object;)V"
+                "invoke-static {p1}, Lapp/ytvr/extension/SpoofStreams;->nativeFormatsNoSabr(Ljava/lang/Object;)V",
             )
         } else if (enableStreamSpoof == true) {
             videoStreamingDataCtorFingerprint.method.addInstructions(
                 0,
-                "invoke-static {p1}, Lapp/ytvr/extension/SpoofStreams;->augmentPlayerResponse(Ljava/lang/Object;)V"
+                "invoke-static {p1}, Lapp/ytvr/extension/SpoofStreams;->augmentPlayerResponse(Ljava/lang/Object;)V",
             )
         }
 
         if (enableIdentityMatrix == true && enableDiagnostics == true) {
             applicationOnCreateFingerprint.method.addInstructions(
                 0,
-                "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->identityMatrixProbe()V"
+                "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->identityMatrixProbe()V",
             )
         }
 
@@ -596,7 +623,7 @@ val extensionPatch = bytecodePatch(
         if (enableStreamSpoof == true && enable8k != true) {
             applicationOnCreateFingerprint.method.addInstructions(
                 0,
-                "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->disable8kExperiment()V"
+                "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->disable8kExperiment()V",
             )
         }
 
@@ -617,7 +644,7 @@ val extensionPatch = bytecodePatch(
         if (enableDiagnostics == true && enableStreamSpoof == true) {
             applicationOnCreateFingerprint.method.addInstructions(
                 0,
-                "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->probe()V"
+                "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->probe()V",
             )
         }
 
@@ -666,7 +693,7 @@ val extensionPatch = bytecodePatch(
             """
                 invoke-static {v${iput.registerA}}, Lapp/ytvr/extension/SpoofStreams;->umpRewriteAllowed(I)I
                 move-result v${iput.registerA}
-            """
+            """,
         )
 
         // Phase 3e: undo the AbrStateDataSpec POST conversion at the DataSpec build -- this is
@@ -690,7 +717,7 @@ val extensionPatch = bytecodePatch(
                     move-object/from16 v0, p0
                     invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onBuild(Ljava/lang/Object;)V
                 """
-            }
+            },
         )
 
         if (enableDiagnostics == true) {
@@ -701,7 +728,7 @@ val extensionPatch = bytecodePatch(
                 """
                     move-object/from16 v0, p0
                     invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onInnertubeRoute(Ljava/lang/Object;)V
-                """
+                """,
             )
         }
 
@@ -715,15 +742,17 @@ val extensionPatch = bytecodePatch(
         // more than 15 registers, where a `p` register cannot be named at all.
         cronetUrlRequestBuilderFingerprint.method.addInstructions(
             0,
-            (if (enableDiagnostics == true) {
-                "invoke-static {p1}, Lapp/ytvr/extension/PotUrls;->onUrlRequest(Ljava/lang/String;)V\n"
-            } else {
-                ""
-            }) +
+            (
+                if (enableDiagnostics == true) {
+                    "invoke-static {p1}, Lapp/ytvr/extension/PotUrls;->onUrlRequest(Ljava/lang/String;)V\n"
+                } else {
+                    ""
+                }
+                ) +
                 """
                     invoke-static {p1}, Lapp/ytvr/extension/PotUrls;->filterUrl(Ljava/lang/String;)Ljava/lang/String;
                     move-result-object p1
-                """
+                """,
         )
 
         // The ad UI countdown: an ad on screen makes it tick, which is the one ad signal that is
@@ -732,7 +761,7 @@ val extensionPatch = bytecodePatch(
         skipAdCountdownFingerprints.forEach { fingerprint ->
             fingerprint.method.addInstructions(
                 0,
-                "invoke-static {p1}, Lapp/ytvr/extension/PotUrls;->onAdCountdown(I)V"
+                "invoke-static {p1}, Lapp/ytvr/extension/PotUrls;->onAdCountdown(I)V",
             )
         }
 
@@ -768,7 +797,7 @@ val extensionPatch = bytecodePatch(
         }
         decision.replaceInstruction(
             forcedOn.index,
-            "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->sabrNotForced()Z"
+            "invoke-static {}, Lapp/ytvr/extension/SpoofStreams;->sabrNotForced()Z",
         )
     }
 }

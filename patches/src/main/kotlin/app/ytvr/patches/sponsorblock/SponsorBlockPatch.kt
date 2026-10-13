@@ -1,14 +1,15 @@
 package app.ytvr.patches.sponsorblock
 
 import app.morphe.patcher.Fingerprint
-import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
-import app.morphe.patcher.extensions.InstructionExtensions.removeInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.stringOption
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
+import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import app.ytvr.patches.shared.Constants.COMPATIBILITY_YOUTUBE_VR
 import app.ytvr.patches.shared.applicationOnCreateFingerprint
 import app.ytvr.patches.shared.callsMethodOn
@@ -30,15 +31,13 @@ import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethodImplementation
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
-import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
-import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction10x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction11x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction22c
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction35c
-import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
-import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 
 /**
  * The loadVideo log literal, unique to the player wrapper's `j` (measured: 1
@@ -94,7 +93,11 @@ private const val ID_SEEKBAR_THUMB = 0x7f0b0a2a
 
 /** The five ids whose presence in one method identifies the player-controls binder. */
 private val SEEKBAR_IDS = intArrayOf(
-    ID_SEEKBAR, ID_SEEKBAR_BUFFERED, ID_SEEKBAR_CONTAINER, ID_SEEKBAR_POSITION, ID_SEEKBAR_THUMB,
+    ID_SEEKBAR,
+    ID_SEEKBAR_BUFFERED,
+    ID_SEEKBAR_CONTAINER,
+    ID_SEEKBAR_POSITION,
+    ID_SEEKBAR_THUMB,
 )
 
 /** True when [this] references every seek-bar resource id (they are inlined ints). */
@@ -115,7 +118,8 @@ private fun Method.referencesSeekbarIds(): Boolean {
  * (a `View` first parameter), which R8 cannot rename.
  */
 private fun ClassDef.isSeekbarController(): Boolean = methods.any { method ->
-    method.name == "<init>" && method.parameterTypes.size == 8 &&
+    method.name == "<init>" &&
+        method.parameterTypes.size == 8 &&
         method.parameterTypes.firstOrNull()?.toString() == "Landroid/view/View;" &&
         method.referencesSeekbarIds()
 }
@@ -124,7 +128,8 @@ private fun ClassDef.isSeekbarController(): Boolean = methods.any { method ->
 private val seekbarControllerFingerprint = Fingerprint(
     returnType = "V",
     custom = { method, classDef ->
-        method.name == "<init>" && classDef?.isSeekbarController() == true &&
+        method.name == "<init>" &&
+            classDef?.isSeekbarController() == true &&
             method.referencesSeekbarIds()
     },
 )
@@ -155,7 +160,6 @@ private val seekbarTimelineFingerprint = Fingerprint(
  * `(View, Bundle)` view-created callback. Structural: an inlined resource id plus a
  * method shape, nothing name-bound.
  */
-
 
 /**
  * `R.id.settings_fragment_holder`: the FrameLayout inside the settings card that the app's
@@ -268,28 +272,26 @@ private const val SUMMARY_PROVIDER_LITERAL = "Preference already has a SummaryPr
 private const val TEXT_VIEW_TYPE = "Landroid/widget/TextView;"
 
 /** True when [this] holds the string literal [literal] as a constant. */
-private fun Method.holdsConstant(literal: String): Boolean =
-    implementation?.instructions?.any { instruction ->
-        (instruction as? ReferenceInstruction)?.reference.let { reference ->
-            reference is StringReference && reference.string == literal
-        }
-    } == true
+private fun Method.holdsConstant(literal: String): Boolean = implementation?.instructions?.any { instruction ->
+    (instruction as? ReferenceInstruction)?.reference.let { reference ->
+        reference is StringReference && reference.string == literal
+    }
+} == true
 
 /** True when [this] class definition references the type [type] anywhere. */
-private fun ClassDef.referencesType(type: String): Boolean =
-    fields.any { it.type == type || it.definingClass == type } ||
-        methods.any { method ->
-            method.implementation?.instructions?.any { instruction ->
-                (instruction as? ReferenceInstruction)?.reference.let { reference ->
-                    when (reference) {
-                        is TypeReference -> reference.type == type
-                        is MethodReference -> reference.definingClass == type
-                        is FieldReference -> reference.definingClass == type
-                        else -> false
-                    }
+private fun ClassDef.referencesType(type: String): Boolean = fields.any { it.type == type || it.definingClass == type } ||
+    methods.any { method ->
+        method.implementation?.instructions?.any { instruction ->
+            (instruction as? ReferenceInstruction)?.reference.let { reference ->
+                when (reference) {
+                    is TypeReference -> reference.type == type
+                    is MethodReference -> reference.definingClass == type
+                    is FieldReference -> reference.definingClass == type
+                    else -> false
                 }
-            } == true
-        }
+            }
+        } == true
+    }
 
 /**
  * Replaces [method] in [classDef] wholesale with a method of the same identity but a register
@@ -361,7 +363,8 @@ private fun BytecodePatchContext.wireModSettingsHub(
 
     // ---- mine what the rewrites need from the fragment's own bodies -------------
     val setupMethod = screenClass.methods.singleOrNull { method ->
-        method.parameterTypes.isEmpty() && method.returnType == "V" &&
+        method.parameterTypes.isEmpty() &&
+            method.returnType == "V" &&
             method.implementation?.instructions?.filterIsInstance<NarrowLiteralInstruction>()
                 ?.count { it.narrowLiteral in XML_RESOURCE_ID_WINDOW } == 1
     } ?: throw PatchException(
@@ -380,7 +383,8 @@ private fun BytecodePatchContext.wireModSettingsHub(
             instruction.opcode == Opcode.IGET_OBJECT &&
                 managerField == null -> managerField = reference as FieldReference
 
-            devXmlId == null && instruction is NarrowLiteralInstruction &&
+            devXmlId == null &&
+                instruction is NarrowLiteralInstruction &&
                 instruction.narrowLiteral in XML_RESOURCE_ID_WINDOW -> devXmlId = instruction.narrowLiteral
 
             instruction.opcode == Opcode.INVOKE_VIRTUAL && reference != null -> {
@@ -684,7 +688,13 @@ private fun BytecodePatchContext.wireModSettingsHub(
             1,
             listOf(
                 ImmutableInstruction35c(
-                    Opcode.INVOKE_VIRTUAL, 1, 0, 0, 0, 0, 0,
+                    Opcode.INVOKE_VIRTUAL,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
                     ImmutableMethodReference.of(popRef),
                 ),
                 ImmutableInstruction10x(Opcode.RETURN_VOID),
@@ -719,7 +729,8 @@ private fun BytecodePatchContext.wireModSettingsHub(
     for (activityType in BACK_ACTIVITY_TYPES) {
         val activity = mutableClassDefBy(activityType)
         val back = activity.methods.singleOrNull { method ->
-            method.name == "onBackPressed" && method.returnType == "V" &&
+            method.name == "onBackPressed" &&
+                method.returnType == "V" &&
                 method.parameterTypes.isEmpty()
         } ?: throw PatchException("Patch settings: no onBackPressed on $activityType")
         check(back.implementation!!.registerCount >= 2) {
@@ -774,7 +785,8 @@ private fun BytecodePatchContext.relabelParallelStack(target: String) {
     }
 
     val setupMethod = parallelClass.methods.singleOrNull { method ->
-        method.parameterTypes.isEmpty() && method.returnType == "V" &&
+        method.parameterTypes.isEmpty() &&
+            method.returnType == "V" &&
             method.implementation?.instructions?.filterIsInstance<NarrowLiteralInstruction>()
                 ?.count { it.narrowLiteral in XML_RESOURCE_ID_WINDOW } == 1
     } ?: throw PatchException(
@@ -895,20 +907,20 @@ private val seekSourceEnumClinitFingerprint = Fingerprint(
  * True when [this] method invokes a **static** method whose parameter prototype is
  * exactly [parameterTypes] and whose return type is a reference.
  */
-private fun Method.invokesStaticReturningReference(parameterTypes: List<String>): Boolean =
-    implementation?.instructions?.any { instruction ->
-        (instruction.opcode == Opcode.INVOKE_STATIC ||
-            instruction.opcode == Opcode.INVOKE_STATIC_RANGE) &&
-            (instruction as? ReferenceInstruction)?.reference.let { reference ->
-                reference is MethodReference &&
-                    reference.parameterTypes.map { it.toString() } == parameterTypes &&
-                    reference.returnType.startsWith("L")
-            }
-    } ?: false
+private fun Method.invokesStaticReturningReference(parameterTypes: List<String>): Boolean = implementation?.instructions?.any { instruction ->
+    (
+        instruction.opcode == Opcode.INVOKE_STATIC ||
+            instruction.opcode == Opcode.INVOKE_STATIC_RANGE
+        ) &&
+        (instruction as? ReferenceInstruction)?.reference.let { reference ->
+            reference is MethodReference &&
+                reference.parameterTypes.map { it.toString() } == parameterTypes &&
+                reference.returnType.startsWith("L")
+        }
+} ?: false
 
 /** The option value, which is only null if it and its default were both lost. */
-private fun requireValue(value: String?, optionKey: String): String =
-    value ?: throw PatchException("SponsorBlock: option '$optionKey' has no value")
+private fun requireValue(value: String?, optionKey: String): String = value ?: throw PatchException("SponsorBlock: option '$optionKey' has no value")
 
 /**
  * SponsorBlock for YouTube VR: skips crowd-sourced segments (sponsors, self-promos,
@@ -938,8 +950,9 @@ private fun requireValue(value: String?, optionKey: String): String =
 val sponsorBlockPatch = bytecodePatch(
     name = "SponsorBlock",
     description = "Automatically skips SponsorBlock segments (sponsors, self-promos, " +
-        "intros, ...). Off by default; configure per-category behaviour below.",
-    default = false,
+        "intros, ...). On by default (sponsors: skip once); configure per-category " +
+        "behaviour below or in the headset's Patch settings screen.",
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -951,19 +964,18 @@ val sponsorBlockPatch = bytecodePatch(
             "origin (scheme, host, optional port), no path.",
     )
 
-    fun categoryBehaviourOption(key: String, title: String, default: String) =
-        stringOption(
-            key = key,
-            default = default,
-            values = mapOf(
-                "skip" to "Skip automatically (a backwards seek skips it again)",
-                "skip-once" to "Skip automatically once (a backwards seek stays)",
-                "seekbar-only" to "Show on the seekbar only (never skips)",
-                "manual-skip" to "Show a Skip button -- no button here: same as seekbar-only",
-                "ignore" to "Leave alone",
-            ),
-            title = title,
-        )
+    fun categoryBehaviourOption(key: String, title: String, default: String) = stringOption(
+        key = key,
+        default = default,
+        values = mapOf(
+            "skip" to "Skip automatically (a backwards seek skips it again)",
+            "skip-once" to "Skip automatically once (a backwards seek stays)",
+            "seekbar-only" to "Show on the seekbar only (never skips)",
+            "manual-skip" to "Show a Skip button -- no button here: same as seekbar-only",
+            "ignore" to "Leave alone",
+        ),
+        title = title,
+    )
 
     // Upstream's own default map: what a phone user gets before touching anything, and deliberately
     // conservative -- only sponsor skips by itself, the five categories upstream leaves to a Skip
@@ -1136,7 +1148,8 @@ val sponsorBlockPatch = bytecodePatch(
                 }
             }
             ?.filter {
-                it.returnType == "V" && it.parameterTypes.size == 2 &&
+                it.returnType == "V" &&
+                    it.parameterTypes.size == 2 &&
                     it.parameterTypes[0].toString() == "J" &&
                     it.parameterTypes[1].toString().startsWith("L")
             }
@@ -1166,8 +1179,10 @@ val sponsorBlockPatch = bytecodePatch(
                 pastUnknown = true
                 continue
             }
-            if (pastUnknown && instruction.opcode == Opcode.SPUT_OBJECT &&
-                reference is FieldReference && reference.definingClass == seekSourceType
+            if (pastUnknown &&
+                instruction.opcode == Opcode.SPUT_OBJECT &&
+                reference is FieldReference &&
+                reference.definingClass == seekSourceType
             ) {
                 seekSourceField = reference
                 break
@@ -1197,10 +1212,19 @@ val sponsorBlockPatch = bytecodePatch(
                 2,
                 listOf(
                     ImmutableInstruction22c(
-                        Opcode.IGET_OBJECT, 0, 1, ImmutableFieldReference.of(backendField!!),
+                        Opcode.IGET_OBJECT,
+                        0,
+                        1,
+                        ImmutableFieldReference.of(backendField!!),
                     ),
                     ImmutableInstruction35c(
-                        Opcode.INVOKE_INTERFACE, 1, 0, 0, 0, 0, 0,
+                        Opcode.INVOKE_INTERFACE,
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
                         ImmutableMethodReference.of(accessor),
                     ),
                     ImmutableInstruction11x(Opcode.MOVE_RESULT_WIDE, 0),
@@ -1223,14 +1247,25 @@ val sponsorBlockPatch = bytecodePatch(
                 5,
                 listOf(
                     ImmutableInstruction22c(
-                        Opcode.IGET_OBJECT, 0, 2, ImmutableFieldReference.of(backendField!!),
+                        Opcode.IGET_OBJECT,
+                        0,
+                        2,
+                        ImmutableFieldReference.of(backendField!!),
                     ),
                     ImmutableInstruction21c(
-                        Opcode.SGET_OBJECT, 1, ImmutableFieldReference.of(seekSourceField!!),
+                        Opcode.SGET_OBJECT,
+                        1,
+                        ImmutableFieldReference.of(seekSourceField!!),
                     ),
                     ImmutableInstruction35c(
                         // { backend, position.lo, position.hi, seek source }
-                        Opcode.INVOKE_INTERFACE, 4, 0, 3, 4, 1, 0,
+                        Opcode.INVOKE_INTERFACE,
+                        4,
+                        0,
+                        3,
+                        4,
+                        1,
+                        0,
                         ImmutableMethodReference.of(seekRef),
                     ),
                     ImmutableInstruction10x(Opcode.RETURN_VOID),
@@ -1417,11 +1452,13 @@ val sponsorBlockPatch = bytecodePatch(
 
                     instruction.opcode == Opcode.IGET_OBJECT &&
                         reference is FieldReference &&
-                        reference.type == "Ljava/lang/String;" && keyField == null ->
+                        reference.type == "Ljava/lang/String;" &&
+                        keyField == null ->
                         keyField = reference
 
                     instruction.opcode == Opcode.IGET_OBJECT &&
-                        reference is FieldReference && holderField == null ->
+                        reference is FieldReference &&
+                        holderField == null ->
                         holderField = reference
 
                     reference is MethodReference &&
@@ -1490,7 +1527,8 @@ val sponsorBlockPatch = bytecodePatch(
             )
         val talksToLiveHolder = titleMethod.implementation!!.instructions.any { instruction ->
             (instruction as? ReferenceInstruction)?.reference.let { reference ->
-                reference is FieldReference && reference.definingClass == mining.routeTarget &&
+                reference is FieldReference &&
+                    reference.definingClass == mining.routeTarget &&
                     reference.type == mining.holderType
             }
         }

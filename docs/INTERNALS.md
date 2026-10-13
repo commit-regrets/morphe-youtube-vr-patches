@@ -34,7 +34,7 @@ table, and verify with the recipe in the "Verifying a change" section.
 | DRC audio | `PlaybackAgnosticUserPreferences.getIsDrcEnabled` | unobfuscated name | Disable DRC audio |
 | version spoofing | `ocn.b(Context)` (name), `ocn.a(Context)` (code) | the `pref_override_build_version_name` literal: the class that holds it, its `String(Context)` and its `I(Context)` | Spoof app version |
 | QUIC | cronet builder chain in `ltq` | `Object(Object,Object)` holding `youtubei.googleapis.com`, with `const 1` → `enableQuic` → `move-result-object` (1 match; `phn`'s second engine is excluded because it passes `false`) | Disable QUIC protocol |
-| osName / device class | `ocn.c(Context)` | `Z(Context)` whose body holds `android.hardware.type.automotive`, in the class holding the version-name preference key (the literal alone occurs in 9 classes) | Spoof osName (Android Automotive) |
+| osName / device class | `ocn.c(Context)` | `Z(Context)` whose body holds `android.hardware.type.automotive`, in the class holding the version-name preference key (the literal alone occurs in 9 classes) | — (patch removed 2026-10-12: measured to propagate but not to block ads, see FINGERPRINTS.md) |
 | package name in the Cronet User-Agent | `agtm.a(Context, agsc, String)` | `String` return + the `" (Linux; U; Android "` literal + the `getPackageName()` call the patch rewrites | Spoof package name in User-Agent |
 | player wrapper seek | `pwe.o(J, ablw)` → backend `qhg.F(J, ablw)` | the `MedialibPlayer.seekTo(positionMillis=%d)` literal | SponsorBlock (mined for the seek `MethodReference`; returns void — skips confirm via `onSeeked`) |
 | player wrapper loadVideo | `pwe.j(pzj)` | the full `MedialibPlayer.loadVideo(cpn=%s …)` literal (1 match; `holdsStringLiteral` is exact equality, so a prefix matches nothing) | SponsorBlock (captures the `pwe` instance, resets state, starts the fetch) |
@@ -82,6 +82,10 @@ something we tested.
    read from the environment by `settings.gradle.kts`).
 2. Apply with diagnostics on, so diagnostics-gated hooks are exercised too:
    `java -jar morphe-desktop-all.jar patch --patches patches/build/libs/patches-<v>.mpp -OenableDiagnostics=true --result-file out.json -o out.apk <stock apk>`
+   For a local build that only needs *this port's* log lines, `-OforceVerboseLogging=true` is the
+   cheaper switch and the only one that wins over the "Verbose logging" row's stored value: no extra
+   hooks, no probe fetch. Neither is on by default, and a no-option apply injects no logging enable at
+   all (see [AGENTS.md](../AGENTS.md#logging)).
 3. Trust `Applied:` only after checking *which* method changed — ambiguity is silent. Extract the
    last `classes*.dex` from `out.apk`, decompile it, and confirm the hook is in the intended method
    and that the patched-class set is unchanged ([FINGERPRINTS.md](FINGERPRINTS.md) has the list).

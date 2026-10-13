@@ -1,16 +1,22 @@
 version: 2
+# `target-branch` is the branch the update PRs open against, and it has to be a
+# branch that exists: this said `dev` for all three ecosystems, which the
+# repository does not have (it is `develop`), so every monthly run failed and no
+# update PR was ever opened. The default branch is `main`, and version updates
+# go to `develop` -- that is where work happens, and `main` takes changes only
+# through the develop -> main pull request.
 updates:
   - package-ecosystem: github-actions
     labels: []
     directory: /
-    target-branch: dev
+    target-branch: develop
     schedule:
       interval: monthly
 
   - package-ecosystem: npm
     labels: []
     directory: /
-    target-branch: dev
+    target-branch: develop
     schedule:
       interval: monthly
     ignore:
@@ -21,6 +27,6 @@ updates:
   - package-ecosystem: gradle
     labels: []
     directory: /
-    target-branch: dev
+    target-branch: develop
     schedule:
       interval: monthly

@@ -42,7 +42,7 @@ So after any fingerprint change, verify *which* method was modified:
    of the **one-parameter** constructor, not the two-parameter sibling. For `pqy`, the patch's own
    edit must be visible as `this.c = false;` (the `instance-of` replaced by `const/4`).
 
-   With **SponsorBlock** enabled (it is off by default, so default runs do not include this), the set
+   With **SponsorBlock** enabled (it is `default = true`, so default runs include it), the set
    gains exactly three classes, each explainable: `pwe` (the loadVideo/seek hooks + the three
    generated bridge methods), `pwd` (the onSeeked hook) and `ablw` (the seek-source enum: its clinit
    was matched to mine the constant, and the bridge references the field). The bridge bodies read
@@ -182,7 +182,7 @@ with jadx on that dex alone, which agreed):
 | target | anchor now | matches | was (app name) |
 |---|---|---|---|
 | `platypusEnable` ×2 (done earlier) | readable library class + `Z` + parameter count 2 / 3 | 1 each | obfuscated method names |
-| `SpoofOsName` automotive | `Z(Context)` + the class holds the version-name pref key + the body holds `android.hardware.type.automotive` | 1 | `Locn;` / `c` |
+| `SpoofOsName` automotive (**patch removed 2026-10-12**: measured to propagate but not to block ads, see its KDoc in git history) | `Z(Context)` + the class holds the version-name pref key + the body holds `android.hardware.type.automotive` | 1 | `Locn;` / `c` |
 | `SpoofAppVersion` name | `String(Context)` holding the pref key literal | 1 | already durable |
 | `SpoofAppVersion` code | `I(Context)` in the class holding that key | 1 | `Locn;` / `a` |
 | `SpoofUserAgentPackage` | `String` return + `" (Linux; U; Android "` + the `getPackageName()` call it rewrites | 1 | `Lagtm;` / `a` + full prototype |

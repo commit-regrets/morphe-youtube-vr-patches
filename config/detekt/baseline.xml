@@ -18,7 +18,6 @@
     <ID>MagicNumber:ExtensionPatch.kt$0x10</ID>
     <ID>MagicNumber:ExtensionPatch.kt$8</ID>
     <ID>MagicNumber:SettingsXml.kt$16</ID>
-    <ID>MagicNumber:SettingsXml.kt$8</ID>
     <ID>MagicNumber:SponsorBlockPatch.kt$0x7f180000</ID>
     <ID>MagicNumber:SponsorBlockPatch.kt$0x7f180011</ID>
     <ID>MagicNumber:SponsorBlockPatch.kt$0x7f180013</ID>
@@ -33,10 +32,11 @@
     <ID>MagicNumber:SpoofAppVersionPatch.kt$10_000_000</ID>
     <ID>MagicNumber:SpoofAppVersionPatch.kt$1_000</ID>
     <ID>MaxLineLength:DisableQuicPatch.kt$smali = "Lorg/chromium/net/ExperimentalCronetEngine\$Builder;-&gt;enableQuic(Z)Lorg/chromium/net/ExperimentalCronetEngine\$Builder;"</ID>
+    <ID>MaxLineLength:ExtensionPatch.kt$private</ID>
     <ID>MaxLineLength:ExtensionPatch.kt$returnType = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlatypusEnablingManager\$DecisionWithReason;"</ID>
+    <ID>MaxLineLength:SponsorBlockPatch.kt$private</ID>
     <ID>MaxLineLength:SponsorBlockPatch.kt$val receiverRegister = (classRead as com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction).registerC</ID>
     <ID>MaxLineLength:StitchedAdsPatch.kt$definingClass = "Lcom/google/android/libraries/youtube/media/interfaces/CuePointDataProviderWrapper\$NativeCallback;"</ID>
-    <ID>NewLineAtEndOfFile:SponsorBlockPatch.kt$app.ytvr.patches.sponsorblock.SponsorBlockPatch.kt</ID>
     <ID>ReturnCount:SponsorBlockPatch.kt$private fun Method.referencesResourceId(id: Int): Boolean</ID>
     <ID>ThrowsCount:SettingsXml.kt$internal fun restructureSettingsXmls( patchWorkspace: File, sbScreenXmlId: Int, categoryDefaults: Map&lt;String, String&gt;, )</ID>
     <ID>ThrowsCount:SponsorBlockPatch.kt$private fun BytecodePatchContext.relabelParallelStack(target: String)</ID>

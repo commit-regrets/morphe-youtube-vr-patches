@@ -7,17 +7,34 @@ import app.morphe.patcher.patch.Compatibility
 /**
  * The preference key the app reads its version name from (`AppVersionOverride`).
  *
- * It is an anchor, not just a setting: the two patches that target that class find it by this
- * literal instead of by its obfuscated name -- the version spoof matches the accessors in the class
- * that holds it, and the osName spoof uses it to tell that class apart from the other
- * `Z(Context)` feature checks. Both live in this file so they cannot drift apart.
+ * It is an anchor, not just a setting: the version spoof finds its accessors by this literal
+ * instead of by the class's obfuscated name. (The retired osName spoof used it to tell that
+ * class apart from the other `Z(Context)` feature checks; that patch was removed 2026-10-12,
+ * see FINGERPRINTS.md for its measurement record.)
  */
 const val VERSION_NAME_OVERRIDE_KEY = "pref_override_build_version_name"
+
+/**
+ * The app version this bundle is verified against -- the newest normal (non-experimental)
+ * AppTarget below, single-sourced so the Spoof app version option default cannot drift from
+ * the support pinning on a version bump. scripts/check-upstream-version.mjs reads this
+ * constant alongside the literal AppTarget versions.
+ */
+const val SUPPORTED_APP_VERSION = "1.88.10"
 
 object Constants {
     val COMPATIBILITY_YOUTUBE_VR = Compatibility(
         name = "YouTube VR", // App name as it appears in the Android launcher.
         packageName = "com.google.android.apps.youtube.vr.oculus",
+        // User-facing description of the app *and* what this bundle does to it, which is the
+        // convention other community bundles follow (patches-list.json carries it as
+        // `compatiblePackages[].description`, and Morphe Manager and third-party patch indexes
+        // read that file). It is deliberately one sentence per audience: the first says which
+        // build of the app this is -- the Quest one, not the store package the phone patches
+        // target -- and the second says what a user gets from patching it.
+        description = "The Meta Quest build of YouTube VR. These patches make playback ad-free, " +
+            "add SponsorBlock and a starting video quality, and install as a clone beside the " +
+            "store app.",
         apkFileType = ApkFileType.APK,
         appIconColor = 0xFF0000, // Icon color in Morphe Manager. Usually the same color as the icon background.
         targets = listOf(
@@ -55,9 +72,9 @@ object Constants {
             // arm64-v8a only.
             // ---------------------------------------------------------------------------------
             AppTarget(
-                version = "1.88.10",
+                version = SUPPORTED_APP_VERSION,
                 description = "Verified: every fingerprint was re-derived against this build.",
-            )
-        )
+            ),
+        ),
     )
 }

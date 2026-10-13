@@ -71,6 +71,12 @@ param(
     # docs/INTERNALS.md ("Verifying a change").
     [switch] $Diagnostics,
 
+    # Log from the app's first line and IGNORE the "Verbose logging" row's stored value. This is
+    # the switch a local test build wants: unlike -Diagnostics it sets no extra hooks and makes no
+    # probe request, and unlike the row's own default it also wins over a stored value (the row is
+    # sticky across `adb install -r`, so a device that once had it off stays silent otherwise).
+    [switch] $VerboseLogging,
+
     # Run the one-shot identity-matrix probe at app start (development only). It costs ~14
     # *unauthenticated* requests per launch, which is the traffic that gets an IP's
     # unauthenticated innertube requests refused, so the patch additionally requires
@@ -88,10 +94,11 @@ param(
     # is outside the declared AppTarget in Constants.kt, so the patcher *skips* the patch instead
     # of failing: without this check the result is an unpatched app and a green-looking run.
     # Defaults to every patch that is on by default, because the app version this repo supports is
-    # exactly one and a skip in any of them is a broken build; the three opt-in patches (Spoof
-    # osName, Hide stitched ads, Disable QUIC) are not listed. Override with -RequirePatches.
+    # exactly one and a skip in any of them is a broken build; the two opt-in patches (Hide
+    # stitched ads, Disable QUIC) are not listed. Override with -RequirePatches.
     [string[]] $RequirePatches = @(
         'App name',
+        'Default video quality',
         'Disable DRC audio',
         'Extension',
         'Hide ads',
@@ -102,14 +109,12 @@ param(
         'Spoof package name in User-Agent'
     ),
 
-    # Opt-in patches to turn on for this run, for the patches that are off by default. SponsorBlock
-    # is one (`default = false`), and it is listed here by default because it is part of the app
-    # this repo installs: the patch also builds the **Patch settings** hub and the SponsorBlock
-    # settings screen, so a run that leaves it out silently removes both from the installed app --
-    # which is exactly what happened on 2026-10-11, when every rebuild used this script's defaults
-    # and the user lost the settings screens. It is in -RequirePatches too, so the omission fails
-    # the run instead of shipping again. Passing -ExtraPatches replaces this list, so name
-    # SponsorBlock alongside anything else you need. Its options keep their defaults.
+    # Opt-in patches to turn on for this run, for the patches that are off by default (Hide
+    # stitched ads, Disable QUIC). SponsorBlock is `default = true` now, so the
+    # patcher selects it on its own; it stays in this list so a run against an older bundle
+    # still cannot silently drop the settings screens (which is exactly what happened on
+    # 2026-10-11). Passing -ExtraPatches replaces this list, so name SponsorBlock alongside
+    # anything else you need. Its options keep their defaults.
     [string[]] $ExtraPatches = @('SponsorBlock'),
 
     # Rename with the official bundle's universal "Clone app" instead of this bundle's
@@ -337,6 +342,7 @@ $disableStep1 = @()
 $extensionOptions = @{}
 if ($NoSpoof) { $extensionOptions['enableStreamSpoof'] = $false }
 if ($Diagnostics) { $extensionOptions['enableDiagnostics'] = $true }
+if ($VerboseLogging) { $extensionOptions['forceVerboseLogging'] = $true }
 if ($IdentityProbe) { $extensionOptions['enableIdentityMatrix'] = $true }
 if ($NativeFormats) { $extensionOptions['enableNativeFormats'] = $true }
 if ($extensionOptions.Count -gt 0) {
@@ -357,8 +363,8 @@ if (-not $NoClone -and -not $OfficialClone) {
     # attribute, with the official one winning, is the trap this script must not walk into.
     $disableStep1 += 'Install as clone'
 }
-# Opt-in patches (SponsorBlock) are named explicitly so the patcher turns them on; they are not
-# in -RequirePatches by default because they are not part of the standard build.
+# SponsorBlock is default-on in the bundle now, so the patcher selects it on its own; naming it
+# (or any opt-in patch) explicitly keeps a run working against older bundles too.
 foreach ($extra in $ExtraPatches) { $enableStep1 += $extra }
 # Naming the patches whose options are set is harmless (they are default-enabled anyway) and it
 # keeps the printed command readable now that the values live in the options file.
@@ -372,10 +378,11 @@ Assert-RequiredPatches $result1 $required1 'our patches'
 
 $spoof = Get-OptionValue $result1 'Extension' 'enableStreamSpoof'
 $diagnostics = Get-OptionValue $result1 'Extension' 'enableDiagnostics'
+$forceLog = Get-OptionValue $result1 'Extension' 'forceVerboseLogging'
 $identity = Get-OptionValue $result1 'Extension' 'enableIdentityMatrix'
 $native = Get-OptionValue $result1 'Extension' 'enableNativeFormats'
 $name = Get-OptionValue $result1 'App name' 'appName'
-Write-Host "   enableStreamSpoof=$spoof (ad-free requires true), enableDiagnostics=$diagnostics, enableIdentityMatrix=$identity, enableNativeFormats=$native"
+Write-Host "   enableStreamSpoof=$spoof (ad-free requires true), enableDiagnostics=$diagnostics, forceVerboseLogging=$forceLog, enableIdentityMatrix=$identity, enableNativeFormats=$native"
 Write-Host "   app name = '$name'"
 # The options file should make a dropped option impossible, but the failure it guards against is
 # silent (a patched app that is not the app that was asked for), so assert the effective values.
@@ -390,6 +397,9 @@ if ($AppName -and "$name" -ne $AppName) {
 }
 if ($Diagnostics -and "$diagnostics" -ne 'true') {
     Fail "enableDiagnostics did not take true (effective '$diagnostics')"
+}
+if ($VerboseLogging -and "$forceLog" -ne 'true') {
+    Fail "forceVerboseLogging did not take true (effective '$forceLog')"
 }
 if ($IdentityProbe -and "$identity" -ne 'true') {
     Fail "enableIdentityMatrix did not take true (effective '$identity')"

@@ -552,7 +552,10 @@ Still deliberately different from the phone patch, and worth knowing before repo
   for a video that has segments" report.
 - **The build needs the patch turned on**: it is `default = false`, so `scripts/patch-and-install.ps1`
   now takes `-ExtraPatches SponsorBlock` (without it the script cannot produce a SponsorBlock build
-  at all).
+  at all). *(2026-10-12: the patch is now `default = true`, so the patcher selects it on its own and
+  Morphe Manager pre-selects it too; `-ExtraPatches` keeps it named as belt-and-braces for older
+  bundles. The first-release reasoning above — "auto-seeking surprises people" — was already moot:
+  the in-app master switch has shipped `enabled = true` from the start.)*
 
 ## Addendum 3: next work — a "Patch settings" screen, and seek bar markers
 

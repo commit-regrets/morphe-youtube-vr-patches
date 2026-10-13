@@ -282,17 +282,24 @@ private const val MAIN_ROW_TITLE = "Patch settings"
  * one setting that is not a feature. The root element (and with it the resource id and the
  * inflation path) stays the app's own.
  *
- * Idempotence is by *every* row's key: a decode reused from an earlier revision of this patch has
- * the older row set, and requiring the whole set means such a tree is cleared and rewritten rather
- * than being left one row short.
+ * Idempotence is by *every* row's key **and** the quality row's shape: a decode reused from an
+ * earlier revision of this patch has the older row set -- and, for the quality row, the older
+ * `ListPreference` widget -- so requiring the whole set *and* a plain `Preference` there means such
+ * a tree is cleared and rewritten rather than being left one row short or with an inert row.
  */
 private fun fillHubScreen(xml: File) = editXml(xml) { root ->
-    val present = root.getElementsByTagName("*").let { nodes ->
-        (0 until nodes.length).mapNotNull { index ->
-            (nodes.item(index) as? Element)?.getAttribute("android:key")
-        }
+    val rows = root.getElementsByTagName("*").let { nodes ->
+        (0 until nodes.length).mapNotNull { index -> nodes.item(index) as? Element }
+    }
+    val present = rows.mapNotNull { row ->
+        row.getAttribute("android:key").takeIf { key -> key.isNotEmpty() }
     }.toSet()
-    if (HUB_ROW_KEYS.all { it in present }) {
+    val qualityRowIsPlain = rows.any { row ->
+        row.getAttribute("android:key") == VIDEO_QUALITY_KEY &&
+            row.tagName == PLAIN &&
+            !row.hasAttribute("android:entries")
+    }
+    if (HUB_ROW_KEYS.all { it in present } && qualityRowIsPlain) {
         return@editXml
     }
     while (root.firstChild != null) {
@@ -318,15 +325,43 @@ private const val VERBOSE_LOGGING_KEY = "ytvr_mod_verbose_logging"
 private const val VERBOSE_LOGGING_TITLE = "Verbose logging"
 
 /**
- * The hub's rows: the feature entries, then the diagnostic switch. The switch sits on the hub
- * rather than inside a feature's screen because it gates the whole extension, not SponsorBlock --
- * and it needs no click handler of its own, because a `SwitchPreference` persists itself.
+ * The hub's "Default video quality" row: the resolution every video starts at, read at runtime by
+ * the extension the Default video quality patch injects. The patch's build option seeds the value
+ * on first launch, and the extension's own row UI paints the current choice under the name --
+ * [VIDEO_QUALITY_SUMMARY] is only what shows before that runs.
+ *
+ * **A plain `Preference`, never a `ListPreference`.** Measured on the device, twice over: this app
+ * replaces androidx's preference adapter with its own and that adapter dispatches a row click
+ * itself, doing nothing for a row type it does not know, and androidx's `ListPreference` picker is
+ * an `AlertDialog`, which is never composited into the VR panel. Either one reads exactly like the
+ * bug report this replaced -- the row is there, tapping it opens nothing (2026-10-13). The options
+ * live in the extension, which builds the picker *inside* the row, the same way the behaviour
+ * pickers work (see `CategoryRows`), and that is also why no `entries`/`entryValues` arrays are
+ * written for this row any more.
+ */
+private const val VIDEO_QUALITY_KEY = "ytvr_mod_video_quality"
+private const val VIDEO_QUALITY_TITLE = "Default video quality"
+private const val VIDEO_QUALITY_SUMMARY = "Highest available"
+
+/**
+ * The hub's rows: the feature entries, the video quality picker, then the diagnostic switch. The
+ * switch sits on the hub rather than inside a feature's screen because it gates the whole
+ * extension, not SponsorBlock -- and it needs no click handler of its own, because a
+ * `SwitchPreference` persists itself. The quality picker is a hub-level row for the same reason:
+ * it configures the Default video quality patch, not SponsorBlock.
  */
 private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
     "Preference" to listOf(
         "android:key" to HUB_ENTRY_KEY,
         "android:title" to "SponsorBlock",
         "android:summary" to "Skips crowd-sourced sponsor segments automatically",
+    ),
+    PLAIN to listOf(
+        "android:key" to VIDEO_QUALITY_KEY,
+        "android:title" to VIDEO_QUALITY_TITLE,
+        // No `android:defaultValue`: a plain `Preference` does not persist one, and the extension
+        // seeds the setting from the build option on its first read anyway.
+        "android:summary" to VIDEO_QUALITY_SUMMARY,
     ),
     SWITCH to listOf(
         "android:key" to VERBOSE_LOGGING_KEY,
@@ -554,13 +589,13 @@ private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, St
             "the first entry (" + BEHAVIOUR_ENTRY_VALUES.first() + ") regardless of the options"
     }
     editXml(arraysFile) { root ->
-        val existing = root.getElementsByTagName("string-array")
-        for (index in 0 until existing.length) {
-            val element = existing.item(index) as? Element ?: continue
-            if (element.getAttribute("name") == "ytvr_sb_behaviour_entries") {
-                return@editXml
+        val existingNames = root.getElementsByTagName("string-array").let { nodes ->
+            (0 until nodes.length).mapNotNull { index ->
+                (nodes.item(index) as? Element)?.getAttribute("name")
             }
-        }
+        }.toSet()
+        // Per-name idempotence, not an early return: the arrays are two features' worth now, and a
+        // decode reused from an older revision may have one set but not the other.
         val arrays = listOf(
             "ytvr_sb_behaviour_entries" to BEHAVIOUR_ENTRY_LABELS,
             "ytvr_sb_behaviour_values" to BEHAVIOUR_ENTRY_VALUES,
@@ -568,6 +603,9 @@ private fun addBehaviourArrays(screenXml: File, categoryDefaults: Map<String, St
             "ytvr_sb_highlight_values" to HIGHLIGHT_ENTRY_VALUES,
         )
         for ((name, items) in arrays) {
+            if (name in existingNames) {
+                continue
+            }
             val array = root.ownerDocument.createElement("string-array")
             array.setAttribute("name", name)
             for (item in items) {

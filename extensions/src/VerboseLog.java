@@ -2,7 +2,6 @@ package app.ytvr.extension;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,31 +10,31 @@ import java.util.Map;
 /**
  * The single gate every log line in this extension goes through.
  *
- * The port had grown one private {@code log(String)} helper per class, each writing straight to
- * {@code System.out} (the logcat tag the extension has always used). That is what a developer
- * wants -- the settings dump, the per-segment {@code effective:} line, the spoof diagnostics --
- * and exactly what a user of a released build must not see. So those lines now hang off one
- * switch, which is a settings row ("Verbose logging", in the "Patch settings" hub) rather than a
- * build option, so turning them back on needs no rebuild:
+ * <p>The port had grown one private {@code log(String)} helper per class, each writing straight to
+ * {@code System.out} (the logcat tag the extension has always used). That is what a developer wants
+ * -- the settings dump, the per-segment {@code effective:} line, the spoof diagnostics -- and
+ * exactly what a user of a released build must not see. So those lines now hang off one switch,
+ * which is a settings row ("Verbose logging", in the "Patch settings" hub) rather than a build
+ * option, so turning them back on needs no rebuild:
  *
  * <ul>
  *   <li>this is the **only** place in {@code extensions/src} that writes to {@code System.out};
- *       every class's own {@code log(String)} is a one-line delegation to {@link #log};</li>
+ *       every class's own {@code log(String)} is a one-line delegation to {@link #log};
  *   <li>the gate is a plain volatile field, so a closed one costs a field read and returns before
- *       the message is even formatted -- logging off changes nothing else about the app;</li>
- *   <li>the field is refreshed by a preference-change listener, so flipping the row takes effect
- *       on the next log line with no restart. See {@link #LISTENER} for why it is held in a static
- *       field.</li>
+ *       the message is even formatted -- logging off changes nothing else about the app;
+ *   <li>the field is refreshed by a preference-change listener, so flipping the row takes effect on
+ *       the next log line with no restart. See {@link #LISTENER} for why it is held in a static
+ *       field.
  * </ul>
  *
  * Two sources decide the gate, and the viewer's own row always outranks the build:
  *
  * <ol>
- *   <li>the row's stored value, which is what a release reads;</li>
+ *   <li>the row's stored value, which is what a release reads;
  *   <li>{@link #setDefaultEnabled}, called by the patch when its "Verbose diagnostics (development
  *       only)" option is on -- a development build logs from its first line with nobody tapping the
  *       row, while a build that did not ask for the diagnostics (CI, a release, an end user's
- *       apply) is silent with no options at all.</li>
+ *       apply) is silent with no options at all.
  * </ol>
  *
  * Off by default, in this class and in the row's own {@code android:defaultValue}: a build whose
@@ -57,9 +56,9 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     public static final String KEY_VERBOSE_LOGGING = "ytvr_mod_verbose_logging";
 
     /**
-     * Held strongly on purpose: {@code SharedPreferencesImpl} keeps its listeners in a
-     * {@code WeakHashMap}, so a listener nothing else references is collected and the row would
-     * silently stop working after the first garbage collection.
+     * Held strongly on purpose: {@code SharedPreferencesImpl} keeps its listeners in a {@code
+     * WeakHashMap}, so a listener nothing else references is collected and the row would silently
+     * stop working after the first garbage collection.
      */
     private static final VerboseLog LISTENER = new VerboseLog();
 
@@ -74,6 +73,17 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     private static volatile boolean fallback;
 
     /**
+     * True when a development build asked for logs unconditionally ({@link #forceEnabled}): the
+     * row's stored value is then ignored at start-up. That is the one gap {@link #fallback} leaves
+     * -- a stored value is sticky across {@code adb install -r}, so a device whose "Verbose
+     * logging" row was switched off once stays silent even in a diagnostics build, and the only
+     * ways back were tapping the row or wiping the app's data. A tap still wins for the rest of the
+     * session ({@link #onSharedPreferenceChanged} does not consult this flag), so the row stays
+     * usable; the next launch is loud again.
+     */
+    private static volatile boolean forced;
+
+    /**
      * The preference file, kept so {@link #setDefaultEnabled} can re-read it: the two calls the
      * patch injects at Application.onCreate come from two different patches, and neither may assume
      * it runs first.
@@ -83,14 +93,13 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     /** True once the listener is registered, so a second {@link #init} cannot register it twice. */
     private static volatile boolean watching;
 
-    private VerboseLog() {
-    }
+    private VerboseLog() {}
 
     /**
      * Reads the row's stored value -- falling back to the build's own default -- and starts
-     * watching it. Called at Application.onCreate by the Extension patch and again by
-     * {@link SponsorBlockSettings#initContext}, because the two are injected into the same method
-     * and neither may assume it runs first. This is idempotent, so the second call costs nothing.
+     * watching it. Called at Application.onCreate by the Extension patch and again by {@link
+     * SponsorBlockSettings#initContext}, because the two are injected into the same method and
+     * neither may assume it runs first. This is idempotent, so the second call costs nothing.
      */
     public static void init(Context appContext) {
         try {
@@ -99,7 +108,7 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
                 return;
             }
             preferences = mod;
-            enabled = mod.getBoolean(KEY_VERBOSE_LOGGING, fallback);
+            enabled = forced || mod.getBoolean(KEY_VERBOSE_LOGGING, fallback);
             if (!watching) {
                 watching = true;
                 mod.registerOnSharedPreferenceChangeListener(LISTENER);
@@ -107,7 +116,7 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
             if (enabled) {
                 SponsorBlockSettings.onLogGateOpened();
             }
-            if (fallback) {
+            if (fallback || forced) {
                 // Development builds only, and only while the gate is open: the *names* of the
                 // app's preference files. Measured need -- a switch on these screens can show a new
                 // state while the file this class reads never receives the key, so knowing which
@@ -124,8 +133,12 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     private static void logPreferenceFiles(Context appContext) {
         try {
             String[] names = new File(appContext.getDataDir(), "shared_prefs").list();
-            log(TAG, "preference files: "
-                + (names == null || names.length == 0 ? "(none)" : String.join(", ", names)));
+            log(
+                    TAG,
+                    "preference files: "
+                            + (names == null || names.length == 0
+                                    ? "(none)"
+                                    : String.join(", ", names)));
         } catch (Throwable t) {
             log(TAG, "preference files unreadable: " + t);
         }
@@ -134,8 +147,8 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     /**
      * In a development build: which preference file holds the keys this mod reads and writes.
      * Measured need -- the screens set their storage name to "youtube" and this extension reads
-     * that same file now, so this line is the cross-check that the mod's keys really are where
-     * both writers put them. Key *names* only; values stay unknown to the log.
+     * that same file now, so this line is the cross-check that the mod's keys really are where both
+     * writers put them. Key *names* only; values stay unknown to the log.
      */
     private static void logYtvrKeyLocations(Context appContext) {
         try {
@@ -147,8 +160,10 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
                 if (!name.endsWith(".xml")) {
                     continue;
                 }
-                Map<String, ?> all = appContext
-                    .getSharedPreferences(name.substring(0, name.length() - 4), 0).getAll();
+                Map<String, ?> all =
+                        appContext
+                                .getSharedPreferences(name.substring(0, name.length() - 4), 0)
+                                .getAll();
                 List<String> ours = new ArrayList<>();
                 for (String key : all.keySet()) {
                     if (key.startsWith("ytvr_mod")) {
@@ -169,7 +184,7 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
      * development build logs from its first line without anybody tapping the row, and a build that
      * never asked for the diagnostics stays silent.
      *
-     * It re-reads rather than only remembering the flag, because this call and {@link #init} are
+     * <p>It re-reads rather than only remembering the flag, because this call and {@link #init} are
      * inserted into Application.onCreate by two different patches in whichever order they are
      * applied (1.88.10: the SponsorBlock patch's call lands first inside the method): if init ran
      * with the fallback still false, this call has to be able to open the gate afterwards. A stored
@@ -180,13 +195,37 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
         SharedPreferences mod = preferences;
         if (mod != null) {
             try {
-                enabled = mod.getBoolean(KEY_VERBOSE_LOGGING, value);
+                enabled = forced || mod.getBoolean(KEY_VERBOSE_LOGGING, value);
             } catch (Throwable t) {
                 // Keep the answer the last read produced; a gate that cannot be read stays closed.
             }
         }
         if (enabled) {
             SponsorBlockSettings.onLogGateOpened();
+        }
+    }
+
+    /**
+     * A local test build's "just log" switch: opens the gate now and makes start-up ignore the
+     * row's stored value (see {@link #forced}). Injected from the Extension patch's {@code
+     * forceVerboseLogging} option, which is deliberately *not* {@code enableDiagnostics}: this
+     * installs no extra hooks and makes no probe request, so a build can be loud for testing
+     * without paying the diagnostics' extra traffic. It does get the two listing lines {@link
+     * #init} prints for a development build, which are log lines rather than hooks.
+     *
+     * <p>Order does not matter against {@link #init}: whichever runs last leaves the gate open,
+     * because init consults {@link #forced} as well. The patch injects this one first so that
+     * init's listing runs.
+     */
+    public static void forceEnabled(boolean value) {
+        forced = value;
+        if (value) {
+            enabled = true;
+            SponsorBlockSettings.onLogGateOpened();
+            log(
+                    TAG,
+                    "verbose logging forced on by the build option"
+                            + " (the Verbose logging row is ignored at start-up)");
         }
     }
 
@@ -209,9 +248,9 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
     }
 
     /**
-     * The one log call: prints {@code <tag>: <message>} to {@code System.out} (logcat's
-     * {@code System.out} tag, which is where the extension's lines have always been) and does
-     * nothing whatsoever when the gate is closed.
+     * The one log call: prints {@code <tag>: <message>} to {@code System.out} (logcat's {@code
+     * System.out} tag, which is where the extension's lines have always been) and does nothing
+     * whatsoever when the gate is closed.
      */
     public static void log(String tag, String message) {
         if (!enabled) {
@@ -222,11 +261,11 @@ public final class VerboseLog implements SharedPreferences.OnSharedPreferenceCha
 
     /**
      * The echo of the row's own tap, printed through the gate **deliberately bypassed**: it is the
-     * confirmation of a tap that by definition changes the gate, so gating it would swallow half
-     * of what it reports. Measured 2026-10-11: a tap ON logs while the gate is still shut, and a
-     * tap OFF loses the race against this class's own preference listener, which closes the gate
-     * from the disk-write thread before the caller reaches its log call -- the value landed both
-     * times, the line never printed. This is the only ungated print in the extension.
+     * confirmation of a tap that by definition changes the gate, so gating it would swallow half of
+     * what it reports. Measured 2026-10-11: a tap ON logs while the gate is still shut, and a tap
+     * OFF loses the race against this class's own preference listener, which closes the gate from
+     * the disk-write thread before the caller reaches its log call -- the value landed both times,
+     * the line never printed. This is the only ungated print in the extension.
      */
     public static void logGateToggle(boolean value) {
         System.out.println(TAG + ": verbose logging set: " + value);

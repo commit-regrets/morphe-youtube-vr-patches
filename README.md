@@ -150,6 +150,25 @@ immersive card itself cannot be named: its label is that app-manager record, and
 writes or is consulted for it is signature-guarded (`prot=signature|preinstalled|knownSigner`) — see
 [docs/APP-NAME-CARD.md](docs/APP-NAME-CARD.md).
 
+### Default video quality (start every video at one resolution)
+
+The **Default video quality** patch starts every video at one resolution instead of the app's own
+per-video choice, which drifts downward over a session. The requested resolution is a *ceiling*:
+a video that does not have it plays at that video's highest available format, so **Highest
+available** means 8K on the videos that have it (the stream spoof supplies the 8K format) and
+otherwise simply the best there is. The picker also offers the fixed values explicitly — **8K
+(4320p)**, **4K (2160p)**, 1440p, 1080p Full HD, 720p, 480p, 360p — and every video then uses that
+resolution, falling back to the video's own best only when the video does not have it. **8K** and
+**Highest available** are the same ceiling today, because nothing taller than 4320 is served; they
+are separate entries so the row shows back the one you chose.
+
+The setting lives on the **Patch settings** hub — **Default video quality** — and applies to the
+next video without a rebuild. The row shows the current choice underneath its name, and tapping it
+opens the list *inside the row* (a dialog is never composited into the VR panel, so this setting —
+like the SponsorBlock behaviour pickers — is not a dialog). The Manager patch option of the same
+name only *seeds* the headset setting on first launch; the headset row governs from the first change
+there. **Auto** hands the choice back to the app.
+
 ### SponsorBlock (skip sponsors, self-promos, intros, ...)
 
 The **SponsorBlock** patch automatically skips crowd-sourced segments from
@@ -236,17 +255,17 @@ One thing to know before reporting a bug:
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [App name](#app-name) | Changes the app name shown in the headset's library and in app info. The stock name is just "YouTube", which is easy to confuse with the store app. | • App name |
+| [Default video quality](#default-video-quality) | Starts every video at one resolution instead of the app's per-video choice; a resolution the video lacks falls back to its highest available (8K included when the stream spoof provides it). Changeable in the headset's Patch settings; Auto keeps the app's own behaviour. | • Default video quality |
 | [Disable DRC audio](#disable-drc-audio) | Disables DRC (Dynamic Range Compression) audio. |  |
-| [Disable QUIC protocol](#disable-quic-protocol) | Adds an option to disable QUIC (Quick UDP Internet Connections) network protocol. | • Disable QUIC protocol |
-| [Extension](#extension) | Injects the YouTube VR patch extension used by streaming patches. | • Ad-free streaming spoof (recommended)<br>• Verbose diagnostics (development only)<br>• Probe identity matrix (~14 requests; needs Verbose diagnostics)<br>• Native formats without SABR (retired experiment)<br>• 8K: accept the AV1 8K HDR tier as SDR (experiment) |
+| [Disable QUIC protocol](#disable-quic-protocol) | Adds an option (off by default) to disable QUIC (Quick UDP Internet Connections) network protocol; selecting the patch alone changes nothing until the option is enabled. | • Disable QUIC protocol |
+| [Extension](#extension) | Injects the extension the other patches run through: its streaming spoof is what removes the pre-roll (ad-free playback) and provides the 8K format support. Turning this patch off restores ads. | • Ad-free streaming spoof (recommended)<br>• Verbose diagnostics (development only)<br>• Force verbose logging (development builds)<br>• Probe identity matrix (~14 requests; needs Verbose diagnostics)<br>• Native formats without SABR (retired experiment)<br>• 8K: accept the AV1 8K HDR tier as SDR (experiment) |
 | [Hide ads](#hide-ads) | Hides video ads. |  |
-| [Hide stitched ads (SSAI)](#hide-stitched-ads-ssai) | Removes the client side ad configuration and cue points for server-stitched (SSAI) streams. Does not remove the ad itself; off by default. |  |
+| [Hide stitched ads (SSAI)](#hide-stitched-ads-ssai) | Removes the client side ad configuration and cue points for server-stitched (SSAI) streams. It does not remove the ad itself; keeping ads out is the Extension patch's streaming spoof. Off by default. |  |
 | [Install as clone](#install-as-clone) | Installs the patched app as a separate app by default, so it sits alongside the store's YouTube VR instead of replacing it. Replace mode keeps the official package name: the store copy has to be removed to satisfy the signing difference, Horizon OS then treats this build as the YouTube VR app (a restore prompt, and a warning on every reboot), and a store update will collide with it because this build is signed differently. | • Package name<br>• Update permissions<br>• Update providers |
 | [Remove viewer discretion dialog](#remove-viewer-discretion-dialog) | Removes the dialog that appears when opening a video that has been age-restricted by accepting it automatically. This does not bypass the age restriction. |  |
-| [SponsorBlock](#sponsorblock) | Automatically skips SponsorBlock segments (sponsors, self-promos, intros, ...). Off by default; configure per-category behaviour below. | • SponsorBlock API base<br>• Sponsor<br>• Self-promotion<br>• Interaction reminder<br>• Intermission/intro<br>• Outro/endcards<br>• Preview/recap<br>• Hook (padding after intro)<br>• Filler tangent<br>• Music: non-music<br>• Highlight (jump to point) |
-| [Spoof app version](#spoof-app-version) | Adds an option to trick the app into thinking you are running a different version. | • Spoofed version name |
-| [Spoof osName (Android Automotive)](#spoof-osname-android-automotive) | Reports the app as an Android Automotive device, the way the phone patch set blocks video ads. |  |
-| [Spoof package name in User-Agent](#spoof-package-name-in-user-agent) | Adds an option to report a different app package name in the Cronet User-Agent. | • Spoofed package name |
+| [SponsorBlock](#sponsorblock) | Automatically skips SponsorBlock segments (sponsors, self-promos, intros, ...). On by default (sponsors: skip once); configure per-category behaviour below or in the headset's Patch settings screen. | • SponsorBlock API base<br>• Sponsor<br>• Self-promotion<br>• Interaction reminder<br>• Intermission/intro<br>• Outro/endcards<br>• Preview/recap<br>• Hook (padding after intro)<br>• Filler tangent<br>• Music: non-music<br>• Highlight (jump to point) |
+| [Spoof app version](#spoof-app-version) | Adds an option to trick the app into thinking you are running a different version; the option ships set to the app's current version, so selecting the patch alone changes nothing. | • Spoofed version name |
+| [Spoof package name in User-Agent](#spoof-package-name-in-user-agent) | Adds an option to report a different app package name in the Cronet User-Agent; the option ships set to the original package name, so selecting the patch alone changes nothing. | • Spoofed package name |
 
 </details>
 
@@ -291,6 +310,13 @@ version live in [`docs/`](docs/) — start at [docs/README.md](docs/README.md). 
 hand-written; the patches list above, `CHANGELOG.md`, `patches-list.json`, `patches-bundle.json`
 and the version in `gradle.properties` are generated by the release pipeline, so edit the prose,
 not those.
+
+**Logging is opt-in and never on by default.** A normal apply — CI, a release, or anyone using the
+bundle through Morphe Manager — injects `VerboseLog.init` and nothing else, so the app prints
+nothing unless the viewer turns on the in-headset **Verbose logging** row. For local work there are
+two development-only options: `-VerboseLogging` (log from the first line and ignore the row's stored
+value, no extra hooks and no extra network requests) and `-Diagnostics` (the same, plus the
+innertube/media route logs and one probe fetch per launch). Both default to off.
 
 
 ## Acknowledgements
