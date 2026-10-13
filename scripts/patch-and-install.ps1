@@ -130,6 +130,10 @@ param(
     # Skip adb install.
     [switch] $NoInstall,
 
+    # Skip the post-patch audit (scripts\audit-patched-apk.ps1). That audit is what catches a stale
+    # bundle and an injected call with no check-cast; skip it only to inspect a half-built APK.
+    [switch] $SkipAudit,
+
     # adb executable; resolved from PATH / common install locations when not given.
     [string] $Adb
 )
@@ -365,6 +369,17 @@ if (-not $NoClone -and -not $OfficialClone) {
 foreach ($extra in $ExtraPatches) { $enableStep1 += $extra }
 # Naming the patches whose options are set is harmless (they are default-enabled anyway) and it
 # keeps the printed command readable now that the values live in the options file.
+# The bundle must be newer than the sources it was built from. A .mpp older than patches/src or
+# extensions/src is a stale build, and a stale build is not visible in a green `Applied:` list: on
+# 2026-10-13 a review agent had the extension sources moved aside while `buildAndroid` ran, so the
+# bundle that got installed did not contain the crash fix the source did. Timestamps are enough.
+$newestSource = Get-ChildItem (Join-Path $PSScriptRoot '..\patches\src'), (Join-Path $PSScriptRoot '..\extensions\src') -Recurse -File |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($newestSource -and (Get-Item $bundle).LastWriteTime -lt $newestSource.LastWriteTime) {
+    Fail ("the bundle is older than the sources: {0} was built {1:yyyy-MM-dd HH:mm:ss}, {2} changed {3:yyyy-MM-dd HH:mm:ss}. Run .\gradlew.bat buildAndroid first" -f `
+        (Split-Path $bundle -Leaf), (Get-Item $bundle).LastWriteTime, $newestSource.Name, $newestSource.LastWriteTime)
+}
+
 $result1 = Invoke-Patch -Bundle $bundle -InputApk $Apk -OutputApk $step1 `
     -Enable $enableStep1 -Disable $disableStep1 -PatchOptions $patchOptions
 Assert-NoFailedPatches $result1 'our patches'
@@ -475,12 +490,22 @@ if ($OfficialClone) {
     }
 }
 
+# --- 2c. audit the patched APK --------------------------------------------------------
+# The fast half of scripts\audit-patched-apk.ps1: does the shipped extension dex carry what the
+# sources declare, and is there an injected Object-returning call without its check-cast. The slow
+# checks (reachability, the settings XML) stay on demand: run the audit with no -Skip switches.
+if (-not $SkipAudit) {
+    Write-Host "`n[audit] checking $final against the sources" -ForegroundColor Cyan
+    $auditScript = Join-Path $PSScriptRoot 'audit-patched-apk.ps1'
+    & pwsh -NoProfile -File $auditScript -Apk (Resolve-Path $final).Path -Root (Resolve-Path (Join-Path $PSScriptRoot '..')).Path -SkipXml -SkipReach
+    if ($LASTEXITCODE -ne 0) { Fail 'the audit failed: see the FAIL lines above (the patched APK is still on disk)' }
+}
+
 # --- 3. install -----------------------------------------------------------------------
 if ($NoInstall) {
     Write-Host "`n[3/3] skipped install; apk is at $final" -ForegroundColor Yellow
     exit 0
-}
-Write-Host "`n[3/3] installing $final" -ForegroundColor Cyan
+}Write-Host "`n[3/3] installing $final" -ForegroundColor Cyan
 $adbPath = Resolve-Adb
 & $adbPath install -r $final
 if ($LASTEXITCODE -ne 0) { Fail 'adb install failed' }

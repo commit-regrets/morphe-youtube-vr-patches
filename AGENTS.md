@@ -128,6 +128,38 @@ from the device.
   8K quality option disappear from the menu.
 * Diff the applied patch set against the previous build before installing over the user's app.
 
+## Auditing a patched APK (`scripts/audit-patched-apk.ps1`)
+
+Run this after any patch run you intend to trust:
+
+```powershell
+pwsh -NoProfile -File scripts\audit-patched-apk.ps1                       # full audit
+pwsh -NoProfile -File scripts\audit-patched-apk.ps1 -SkipXml -SkipReach    # the fast half
+pwsh -NoProfile -File scripts\audit-patched-apk.ps1 -Bundle patches\build\libs\patches-1.24.0.mpp   # CI mode
+```
+
+`scripts/patch-and-install.ps1` runs the fast half on every install (`-SkipAudit` to bypass) and
+**refuses to patch when the bundle is older than `patches/src` or `extensions/src`**. That staleness
+guard exists because a green `Applied:` list cannot see it: on 2026-10-13 a review agent had the
+extension sources moved aside while `buildAndroid` ran, so the installed bundle did not contain the
+crash fix that was in the source.
+
+| check | the incident it catches |
+|---|---|
+| sources vs the shipped extension dex | a class or static method in `extensions/src` that the APK's extension dex does not have -- an APK built from different sources than the ones on disk (the stale-bundle incident above) |
+| reachability | an app method we injected into that no method calls and whose name is in no native library. A **review list, never a failure**: `onBackPressed` overrides and Cronet's JNI callback are legitimately caller-less. It is the check that would have flagged the DRC patch on day one -- installed perfectly, read by nothing |
+| cast lint | an injected block whose call returns `Ljava/lang/Object;` with no `check-cast` in the same block: the `saj` VerifyError, which launches fine and dies at the first video |
+| settings XML | an unqualified `@name` reference (the encoder stores it as a raw string and the hub crashes on inflation), plus a printed list of the hub's rows and summaries, so a row whose advice `CategoryRows` overwrites is visible instead of invisible |
+| bundle mode (run by `build.yml`) | a patch template naming an extension member the extension dex does not have -- the half that needs no stock APK |
+
+Two PowerShell traps are baked into that script's shape, because both cost time here: a function must
+print **only** what it means to return (javac's chatter joined the returned classpath and every later
+call operator was rejected as invalid), and no local may be called `$java` (it shadows the JDK path,
+and the next invocation tries to execute a `.java` file as a command).
+
+The dex reader is `tools/dexaudit/DexAudit.java`, compiled on demand against the patcher's own
+`smali-dexlib2` + guava out of the Gradle cache, so the audit and the patcher agree on what a dex says.
+
 ## Measured traps (each verified on the device — do not re-try)
 
 | trap | consequence |

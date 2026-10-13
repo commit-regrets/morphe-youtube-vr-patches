@@ -88,6 +88,17 @@ jobs:
       - name: Build
         run: ./gradlew buildAndroid --no-daemon
 
+      # The half of the audit that needs no stock APK: every extension member a patch template names
+      # must exist in the bundle's extension dex. The rest of scripts/audit-patched-apk.ps1 needs the
+      # app's APK, which cannot live on a runner, so those checks stay local.
+      - name: Audit the bundle
+        shell: pwsh
+        run: |
+          $mpp = Get-ChildItem patches/build/libs/*.mpp |
+            Where-Object { $_.Name -notmatch 'sources|javadoc' } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          pwsh -NoProfile -File scripts/audit-patched-apk.ps1 -Bundle $mpp.FullName
+
       - name: Upload the bundle
         uses: actions/upload-artifact@v7
         with:
