@@ -89,7 +89,7 @@ jobs:
         run: ./gradlew buildAndroid --no-daemon
 
       - name: Upload the bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: patches-bundle
           # @actions/glob supports a leading ! negation, not !(a|b) extglobs, so list the sources/javadoc
