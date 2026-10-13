@@ -308,15 +308,14 @@ public final class CategoryRows {
     }
 
     /**
-     * A hub switch this class owns: read the effective state, write the viewer's choice, and say in
-     * the row's subtitle what the two states mean.
+     * A hub switch this class owns: read the effective state and write the viewer's choice. The
+     * row's subtitle is left as the patch wrote it -- for this row that is the advice on when to
+     * turn it off -- so nothing here overwrites it.
      */
     interface SettingSwitch {
         boolean isOn();
 
         void set(boolean on);
-
-        String summary(boolean on);
     }
 
     /** QUIC: on means HTTP/3 over UDP is allowed. Cronet builds its engine once per process. */
@@ -330,14 +329,6 @@ public final class CategoryRows {
                 @Override
                 public void set(boolean on) {
                     QuicTransport.setQuicEnabled(on);
-                }
-
-                @Override
-                public String summary(boolean on) {
-                    return (on
-                                    ? "On: QUIC allowed (HTTP/3 over UDP)"
-                                    : "Off: TCP/TLS only, for networks that block UDP")
-                            + " -- applies after restart";
                 }
             };
 
@@ -364,18 +355,16 @@ public final class CategoryRows {
                                 return;
                             }
                             setting.set(checked);
-                            showSummary(row, setting.summary(checked));
                         }
                     };
-            renderSettingSwitch(setting, row, toggle, listener);
+            renderSettingSwitch(setting, toggle, listener);
             row.setOnClickListener(
                     new View.OnClickListener() {
                         @Override
                         public void onClick(View clicked) {
                             boolean on = !setting.isOn();
                             setting.set(on);
-                            showSummary(row, setting.summary(on));
-                            renderSettingSwitch(setting, row, toggle, listener);
+                            renderSettingSwitch(setting, toggle, listener);
                         }
                     });
         } catch (Throwable t) {
@@ -386,7 +375,6 @@ public final class CategoryRows {
     /** Draws the switch from the *effective* state, without that being read as a tap. */
     private static void renderSettingSwitch(
             SettingSwitch setting,
-            View row,
             CompoundButton toggle,
             CompoundButton.OnCheckedChangeListener listener) {
         boolean on = setting.isOn();
@@ -395,7 +383,6 @@ public final class CategoryRows {
             toggle.setChecked(on);
             toggle.setOnCheckedChangeListener(listener);
         }
-        showSummary(row, setting.summary(on));
     }
 
     /**

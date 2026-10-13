@@ -351,7 +351,7 @@ private const val VIDEO_QUALITY_SUMMARY = "Highest available"
 private const val QUIC_ENABLED_KEY = "ytvr_mod_quic_enabled"
 private const val QUIC_TITLE = "QUIC (HTTP/3)"
 private const val QUIC_SUMMARY =
-    "HTTP/3 over UDP; turn off if playback stalls on a network that blocks UDP (restart to apply)"
+    "HTTP/3 over UDP. Turn off if playback stalls on a network that blocks UDP (restart to apply)."
 
 /**
  * The hub's rows: the feature entries, the runtime settings this port owns (video quality, QUIC),
