@@ -2,7 +2,6 @@ import com.android.tools.smali.dexlib2.Opcodes;
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile;
 import com.android.tools.smali.dexlib2.iface.ClassDef;
 import com.android.tools.smali.dexlib2.iface.Method;
-import com.android.tools.smali.dexlib2.iface.MethodParameter;
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
 import java.io.BufferedInputStream;
@@ -177,15 +176,16 @@ public class DexAudit {
     /** Kept for callers that want a method's parameter types without re-deriving them. */
     static String describe(Method m) {
         StringBuilder sb = new StringBuilder("(");
-        for (MethodParameter p : m.getParameters()) {
-            sb.append(p.getType());
+        for (CharSequence type : m.getParameterTypes()) {
+            sb.append(type);
         }
         return sb.append(')').append(m.getReturnType()).toString();
     }
 
     /**
-     * The method's descriptor. dexlib2's {@code Method} has no {@code getDescriptor()} (only the
-     * smali-side classes do), so this builds it from the parameter and return types.
+     * The method's descriptor. dexlib2 has no descriptor accessor -- `MethodReference` exposes only
+     * `getDefiningClass`, `getName`, `getParameterTypes` and `getReturnType` (verified against the
+     * smali/dexlib2 API docs, 2026-10-13) -- so this builds it from those.
      */
     private static String descriptorOf(Method m) {
         return describe(m);
