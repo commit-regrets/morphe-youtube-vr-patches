@@ -95,6 +95,20 @@ adb pull /sdcard/shot.png
 ```
 Frames are 4128x2208 stereoscopic (both eyes; crop one half if useful).
 
+* **A headset that is not being worn sleeps, whatever the power state.** Measured 2026-10-13: AC power
+  connected *and* `stay_on_while_plugged_in = 15` set, with `mWakefulness=Asleep` anyway -- Horizon OS
+  overrides Android's stay-awake flag from the wear sensor. So the documented "set the flag, then
+  `KEYCODE_WAKEUP`" pair only holds while the headset believes it is worn: wake immediately before
+  **each** launch and each capture, and expect an `am start` against a sleeping headset to be *cached*
+  rather than run -- the capture then comes back with zero matching lines, no crash, and no error from
+  `am start` either (see the Guardian trap in the measured table).
+* **You cannot fake being worn.** Immersive VR playback stops when the headset is off the head
+  (`STOPPAGE_VR_ACTIVITY_STOP_NO_BACKGROUND_PLAY`, measured 2026-10-13), and the documented
+  `com.oculus.vrpowermanager.prox_close` broadcast answers `result=0` (no receiver). Panel-mode playback
+  and every log-only check -- spoof status, media requests, decoded sizes -- work unworn; anything that
+  needs the *immersive* view needs a human wearing it (covering the proximity sensor is the lab trick,
+  not something to do to someone's headset).
+
 **You cannot inject input.** `adb shell input tap` at panel coordinates is ignored (the panel is
 hit-tested in 3D space, not at display coordinates), and key events go to the VR shell — a
 `KEYCODE_DPAD_DOWN` opens the shell's control bar rather than moving focus in the app. So: rendering
