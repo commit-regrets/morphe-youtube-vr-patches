@@ -1,3 +1,16 @@
+## [1.26.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.25.0...v1.26.0) (2026-10-13)
+
+### 🐛 Bug Fixes
+
+* **ads:** answer 'no ad slots' from the two accessors every reader asks (unverified on device) ([d423421](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/d423421c292278de60183b5c144ca84b02555c55))
+* **ads:** answer the ad-slot accessors with the app's own empty list, verified on device ([eb548e4](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/eb548e4b1191cb3496f0de86ffeeef36e6cb1e68))
+* **ads:** drop the ad cue-point list, the fifth client-side ad path (unverified on device) ([4a93429](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/4a93429a021acc81f4f13bbced51267554b32550))
+* retry the spoofed /player request once before the cooldown ([bb7b4fb](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/bb7b4fb7545e22cb5ed7d2f0dd4a4a9f732f4809))
+
+### ✨ New Features
+
+* **script:** add -SmokeTest, and say what 'Hide ads' actually covers ([f1359df](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/f1359df2439c06a3fca49ea15fbe7dea3cfc0ca1))
+
 ## [1.25.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.24.0...v1.25.0) (2026-10-13)
 
 * **deps:** bump actions/setup-java from 6.0.0 to 6.0.1 ([#34](https://github.com/commit-regrets/morphe-youtube-vr-patches/issues/34)) ([59e7234](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/59e7234425f58d75a0598995875f47fa69e97b73))
