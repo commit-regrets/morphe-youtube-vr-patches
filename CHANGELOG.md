@@ -1,3 +1,19 @@
+## [1.25.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.24.0...v1.25.0) (2026-10-13)
+
+* **deps:** bump actions/setup-java from 6.0.0 to 6.0.1 ([#34](https://github.com/commit-regrets/morphe-youtube-vr-patches/issues/34)) ([59e7234](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/59e7234425f58d75a0598995875f47fa69e97b73))
+* **deps:** bump actions/upload-artifact from 4 to 7 ([#33](https://github.com/commit-regrets/morphe-youtube-vr-patches/issues/33)) ([6df58a3](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/6df58a393d42d64daae851d92c926bbafe66e6ec))
+* **deps:** bump com.diffplug.spotless from 7.2.1 to 8.10.4 ([#32](https://github.com/commit-regrets/morphe-youtube-vr-patches/issues/32)) ([a58d7fb](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/a58d7fb43c95eb5493cc12d84e0778ce9916645f))
+* **deps:** bump gradle-wrapper from 9.7.1 to 9.8.1 ([#31](https://github.com/commit-regrets/morphe-youtube-vr-patches/issues/31)) ([68cbae1](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/68cbae1e02453302919e1bfe9fc9202e99db3d43))
+
+### 🐛 Bug Fixes
+
+* keep the QUIC row's advice on screen ([650a7f0](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/650a7f0ae39781d637d9bd079f2673343608b2fc))
+* remove the SSAI patch that could not do what its name said ([c8ab4dd](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/c8ab4ddab979ca1bd35d161ec6e6c6718ea284fa))
+
+### ✨ New Features
+
+* add the QUIC switch, and drop the DRC patch nothing reads ([c58f40a](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/c58f40a58b7e385b2eba4908d200c5867586ab25))
+
 ## [1.24.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.23.1...v1.24.0) (2026-10-13)
 
 ### 🐛 Bug Fixes
