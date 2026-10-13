@@ -48,7 +48,8 @@ private fun Method.loadedAndReturnedStaticField(): FieldReference {
 @Suppress("unused")
 val hideAdsPatch = bytecodePatch(
     name = "Hide ads",
-    description = "Hides video ads.",
+    description = "Hides video ads, including the pre-roll when the streaming spoof is " +
+        "unavailable and the app falls back to its own player response.",
     default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)

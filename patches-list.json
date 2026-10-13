@@ -137,6 +137,15 @@
           "values": null
         },
         {
+          "key": "forceFallback",
+          "title": "Force the native fallback (development only)",
+          "description": null,
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        },
+        {
           "key": "enableIdentityMatrix",
           "title": "Probe identity matrix (~14 requests; needs Verbose diagnostics)",
           "description": null,
@@ -167,7 +176,7 @@
     },
     {
       "name": "Hide ads",
-      "description": "Hides video ads.",
+      "description": "Hides video ads, including the pre-roll when the streaming spoof is unavailable and the app falls back to its own player response.",
       "default": true,
       "dependencies": [],
       "compatiblePackages": [

@@ -290,18 +290,22 @@ anchors and the anchors that *failed* are in `docs/FINGERPRINTS.md`.
 
 One operational rule belongs here, because ignoring it costs an outage: the 8K path depends on a
 response YouTube can withhold at any time, so the fetch fails open (playback keeps working without 8K).
-Four switches are easy to conflate here, cheapest first. `-VerboseLogging` only logs (no extra hooks,
+Five switches are easy to conflate here, cheapest first. `-VerboseLogging` only logs (no extra hooks,
 no network): it is what a local test build wants, and it is also the only one that ignores the
 "Verbose logging" row's stored value. `-Diagnostics` adds the innertube route log, the media-request
 log and **one** fixed-video probe fetch per launch (`SpoofStreams.probe()`). `-ForceFallback`
 (development only) makes every video take the native fallback -- the state a refused spoof leaves the
 app in, and the only state in which the client-side ad machinery runs at all -- which is how the
 ad-blocking fix was measured without waiting for YouTube to refuse the spoof, and why a fallback bug
-can now be reproduced on demand instead of hoped for. The ~14-request identity
+can now be reproduced on demand instead of hoped for. `-SmokeTest` (development only) launches the app
+after installing and fails the run if it crashed: the one check that catches an injected hook the
+verifier rejects, which reads as "the app does not open" rather than a crash -- and with no process at
+all it says INCONCLUSIVE instead of passing, because a sleeping headset caches the launch. It was
+written for exactly that failure (measured 2026-10-13) and passed on its first real run. The ~14-request identity
 **matrix** is its own option, `-IdentityProbe` (default off, and the install script refuses it without
 `-Diagnostics`, whose route log its output needs) -- that is unauthenticated traffic of the kind that
 gets an IP's innertube requests refused, so it stays off in every default build and must not be
-re-hammered. All four default to **off**, and a default apply injects none of them: measured
+re-hammered. All five default to **off**, and a default apply injects none of them: measured
 2026-10-13 on a no-option build, the patched `Application.onCreate` carries exactly one `VerboseLog`
 call, `init`, so a release is silent unless the viewer's own row says otherwise.
 
