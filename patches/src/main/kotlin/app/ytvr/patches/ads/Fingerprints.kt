@@ -98,3 +98,58 @@ object PlayerBytesAdLayoutFingerprint : Fingerprint(
         "Bootstrapped layout construction resulted in non PlayerBytesLayout. PlayerAds count: ",
     ),
 )
+
+/**
+ * Matches the callback the native SABR player uses to hand the app its ad cue-point list -- the
+ * server's statement of where the ad breaks are. The class and method are **not obfuscated** (they
+ * are part of the media interfaces package), which is why this anchor is a name and not a shape.
+ *
+ * This is the one client-side ad path the other four hooks in [app.ytvr.patches.ads.hideAdsPatch]
+ * leave alone, and the one the removed "Hide stitched ads (SSAI)" patch used to cover. Its own note
+ * measured that dropping the list does not remove a *server-stitched* ad, but that measurement was
+ * taken with the streaming spoof working, where ads are absent anyway; on the fallback path -- the
+ * one measured on 2026-10-13 to fetch a doubleclick creative and play the pre-roll -- it has never
+ * been tested. Hooked so it reports itself either way.
+ */
+object CuePointListFingerprint : Fingerprint(
+    definingClass = "Lcom/google/android/libraries/youtube/media/interfaces/" +
+        "CuePointDataProviderWrapper\$NativeCallback;",
+    name = "onCuepointList",
+    parameters = listOf("[B"),
+    returnType = "V",
+)
+
+/**
+ * The two accessors that hand the ad-slot list of a player response to every other reader.
+ *
+ * Found by cross-referencing the field `Lzjp;->n:Lwxq;` over the stock 1.88.10 dex: five sites read
+ * it, and only these two were left uncovered by the four hooks in [app.ytvr.patches.ads.hideAdsPatch]
+ * (`mkz.a` is neutered as the layout bootstrap, `oqm.K` has no callers at all -- and `mqx.r`, the
+ * ad-break list builder, is *not* hooked: it is one of the readers this pair now covers). `d` is the
+ * one every other reader calls -- the neutered `mkz.a` and the unhooked `mqx.r` three times each --
+ * and `c` is its single-type shorthand.
+ *
+ * Measured 2026-10-13 on the forced-fallback build: with all four of those hooks neutered and the
+ * Louvre VR180 video playing, the app still fetched a doubleclick impression and a `pagead/adview`
+ * creative, and the two accessors were reached four times around it. That is what makes them the
+ * delivery path rather than the consumers above them.
+ *
+ * The class and method names are obfuscated and expected to change between versions, so both
+ * fingerprints pin the *whole shape* -- static, the response (plus, for `d`, the slot-type list), and
+ * a reference return -- and a rename fails the patch loudly at patch time instead of hooking a wrong
+ * method silently. The injected `check-cast` reads its type from the method's own return type, so no
+ * obfuscated name is written into the bytecode.
+ */
+object AdSlotAccessorFingerprint : Fingerprint(
+    definingClass = "Lmgn;",
+    name = "c",
+    parameters = listOf("Lzjp;"),
+    returnType = "Lvmo;",
+)
+
+object AdSlotTypedAccessorFingerprint : Fingerprint(
+    definingClass = "Lmgn;",
+    name = "d",
+    parameters = listOf("Lzjp;", "Ljava/util/List;"),
+    returnType = "Lvmo;",
+)

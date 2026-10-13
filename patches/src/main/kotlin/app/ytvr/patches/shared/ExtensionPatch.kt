@@ -332,24 +332,6 @@ private val cronetUrlRequestBuilderFingerprint = Fingerprint(
     ),
 )
 
-/**
- * The skip-ad countdown: the VR floating skip button and the 2D panel one. Both display the
- * remaining ad time, so a call is direct evidence that an ad is on screen -- the QOE
- * `ad_playback` marker only lands in a later ping and is absent in short sessions, which is why
- * it looked like "no ad" in every capture so far.
- *
- * Anchored on framework references and shape only, because R8 reassigns class and method names on
- * every release. The countdown body is `void(int)` writing a CharSequence through
- * `TextView.setText` and mirroring it into `TextView.setContentDescription`; measured over the
- * 1.88.10 dex (146,836 methods) exactly two methods satisfy that, and they are these two ad UIs.
- * Neither anchor alone is enough -- `setContentDescription` alone matches 3, `setText(CharSequence)`
- * alone 4 -- and access flags do not discriminate (the near misses `SeekBarPreference.Z(I)V` and
- * `fim.c(I)V` are PUBLIC|FINAL too).
- *
- * Because that shape matches both ad UIs at once, each fingerprint pins one of them with a further
- * framework fact about its *class*, so a fingerprint still resolves to exactly one method:
- * the panel one is the class that inflates a layout, the VR one animates a view.
- */
 /** Shared with SponsorBlock, which gates its skips on the same ad-UI signal. */
 internal fun isSkipAdCountdown(method: Method): Boolean {
     val instructions = method.implementation?.instructions ?: return false
@@ -381,7 +363,26 @@ internal fun isSkipAdCountdown(method: Method): Boolean {
     return writesText && mirrorsAccessibilityText
 }
 
-/** Shared with SponsorBlock, which hooks both countdowns for its own ad gate. */
+/**
+ * The skip-ad countdown: the VR floating skip button and the 2D panel one. Both display the
+ * remaining ad time, so a call is direct evidence that an ad is on screen -- the QOE
+ * `ad_playback` marker only lands in a later ping and is absent in short sessions, which is why
+ * it looked like "no ad" in every capture so far.
+ *
+ * Anchored on framework references and shape only, because R8 reassigns class and method names on
+ * every release. The countdown body is `void(int)` writing a CharSequence through
+ * `TextView.setText` and mirroring it into `TextView.setContentDescription`; measured over the
+ * 1.88.10 dex (146,836 methods) exactly two methods satisfy that, and they are these two ad UIs.
+ * Neither anchor alone is enough -- `setContentDescription` alone matches 3, `setText(CharSequence)`
+ * alone 4 -- and access flags do not discriminate (the near misses `SeekBarPreference.Z(I)V` and
+ * `fim.c(I)V` are PUBLIC|FINAL too).
+ *
+ * Because that shape matches both ad UIs at once, each fingerprint pins one of them with a further
+ * framework fact about its *class*, so a fingerprint still resolves to exactly one method:
+ * the panel one is the class that inflates a layout, the VR one animates a view.
+ *
+ * Shared with SponsorBlock, which hooks both countdowns for its own ad gate.
+ */
 internal val skipAdCountdownFingerprints = listOf(
     // The VR floating skip button's class animates its view.
     Fingerprint(
@@ -471,11 +472,24 @@ val extensionPatch = bytecodePatch(
         title = "Force verbose logging (development builds)",
     )
 
+    // Development only: make every video take the native fallback path, which is the state a refused
+    // spoof leaves the app in and the only state in which its client-side ad machinery runs at all.
+    // Measured 2026-10-13: with the spoof healthy the app asks for ad breaks and the "Hide ads" hooks
+    // answer "none" four times per video, so the fallback's ad path -- the one that fetched a
+    // doubleclick impression -- cannot be observed while the spoof works. Waiting for YouTube to
+    // refuse the spoof is not a test plan, and inducing a refusal is the traffic that causes one.
+    // Off in every default build, and it changes nothing except which response is used.
+    val forceFallback by booleanOption(
+        key = "forceFallback",
+        default = false,
+        title = "Force the native fallback (development only)",
+    )
+
     // One-shot identity matrix: fetches two videos under several candidate identities plus an
     // ANDROID_VR control and logs the max format height of each, to find which context field
     // unlocks 8K. It costs ~14 *unauthenticated* requests per app start, which is the kind of
     // traffic that gets an IP's unauthenticated innertube requests refused (see
-    // SABR-SPOOF-PLAN.md, 2026-10-11), so it now requires enableDiagnostics as well -- its
+    // docs/INTERNALS.md, 2026-10-11), so it now requires enableDiagnostics as well -- its
     // output is unreadable without the route log anyway -- and stays off in every default build.
     val enableIdentityMatrix by booleanOption(
         key = "enableIdentityMatrix",
@@ -570,6 +584,10 @@ val extensionPatch = bytecodePatch(
                 // preference files and the files holding the `ytvr_mod` keys run.
                 gate += "const/4 v0, 0x1"
                 gate += "invoke-static {v0}, Lapp/ytvr/extension/VerboseLog;->forceEnabled(Z)V"
+            }
+            if (forceFallback == true) {
+                gate += "const/4 v0, 0x1"
+                gate += "invoke-static {v0}, Lapp/ytvr/extension/SpoofStreams;->forceFallback(Z)V"
             }
             gate += "invoke-static {p0}, Lapp/ytvr/extension/VerboseLog;->init(Landroid/content/Context;)V"
             applicationOnCreateFingerprint.method.addInstructions(0, gate.joinToString("\n"))

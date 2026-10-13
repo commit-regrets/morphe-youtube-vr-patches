@@ -48,8 +48,9 @@ private fun Method.loadedAndReturnedStaticField(): FieldReference {
 @Suppress("unused")
 val hideAdsPatch = bytecodePatch(
     name = "Hide ads",
-    description = "Hides video ads.",
-    default = true
+    description = "Hides video ads, including the pre-roll when the streaming spoof is " +
+        "unavailable and the app falls back to its own player response.",
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
@@ -72,7 +73,7 @@ val hideAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 sget-object v0, $emptyList
                 return-object v0
-            """
+            """,
         )
 
         // Prevent ad break responses from being requested over the network.
@@ -83,7 +84,7 @@ val hideAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return-object v0
-            """
+            """,
         )
 
         // Prevent the pre-rendered PlayerBytes ad slot embedded in the player
@@ -96,7 +97,7 @@ val hideAdsPatch = bytecodePatch(
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 const/4 v0, 0x0
                 return v0
-            """
+            """,
         )
 
         // Prevent the bootstrap of the pre-rendered PlayerBytes ad layout from
@@ -107,7 +108,57 @@ val hideAdsPatch = bytecodePatch(
                 const-string v0, "playerBytesLayout"
                 invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
                 return-void
+            """,
+        )
+
+        // The delivery path itself: the two accessors every other reader asks for the ad-slot list.
+        // Measured 2026-10-13 on the forced-fallback build (Louvre VR180): with the four hooks above
+        // neutered, the app still fetched a doubleclick impression and a `pagead/adview` creative, and
+        // these two were reached four times around it -- so the schedule comes from what they return,
+        // not from the consumers above. Answering "this response has no ad slots" here makes every
+        // consumer see none at once, and unlike blanking the response's own field it mutates nothing
+        // the playback director holds, which is what reset it when that was tried.
+        // Both accessors answer with the app's own empty slot-list singleton -- the same object the
+        // ad-break renderer above returns when a response carries no ad placements. It is read out of
+        // that method rather than hardcoded, so its declared type is the very list type these two
+        // return, which is what the runtime requires.
+        //
+        // Both methods are **static and tiny**, and that decides the shape of the injection: the
+        // response is `p0`, not `p1`, and they carry no locals, so a `v0` in them *would be* `p0`. Two
+        // measured failures are baked in here: injecting `p1` with a `v0` scratch gave `VerifyError:
+        // Verifier rejected class mgn: vmo mgn.c(zjp): invalid reg index (3) in non-range invoke` and
+        // the app died in Application.onCreate -- it would not open; and an `emptyProtobufList()`
+        // obtained reflectively is a *different* runtime class, so the verifier accepted the
+        // check-cast and ART threw `ClassCastException: wyn cannot be cast to vmo` at the first video.
+        // The cast is a verifier hint, not a conversion. So: reuse `p0`, and return the app's own
+        // object.
+        val emptySlots = emptyList
+        AdSlotAccessorFingerprint.method.addInstructions(
+            0,
             """
+                sget-object p0, $emptySlots
+                return-object p0
+            """,
+        )
+
+        AdSlotTypedAccessorFingerprint.method.addInstructions(
+            0,
+            """
+                sget-object p0, $emptySlots
+                return-object p0
+            """,
+        )
+        // Drop the ad cue-point list the native player hands the app: the server's own statement of
+        // where the ad breaks are. This is the fifth client-side path, and the only one the four
+        // hooks above do not cover -- the removed SSAI patch's fourth hook. It reports itself first,
+        // so a capture shows whether the fallback ad is delivered through it.
+        CuePointListFingerprint.method.addInstructions(
+            0,
+            """
+                const-string v0, "cuepointList"
+                invoke-static {v0}, Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V
+                return-void
+            """,
         )
     }
 }

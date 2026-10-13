@@ -90,6 +90,21 @@ param(
     # only the VISIONOS fetch/swap is skipped. The 8K experiment.
     [switch] $NativeFormats,
 
+    # Force the native fallback on every video (development only): the state a refused spoof leaves
+    # the app in, and the only state in which its client-side ad machinery runs at all. Measured
+    # 2026-10-13: with the spoof healthy the app asks for ad breaks four times per video and the
+    # "Hide ads" hooks answer "none", so the fallback's ad path cannot be observed -- and waiting for
+    # YouTube to refuse the spoof is not a test plan. It changes nothing except which response plays.
+    [switch] $ForceFallback,
+
+    # Launch the app after installing and report whether it survives (development only). This is the
+    # check that catches an injected hook the verifier rejects: the app dies inside
+    # `Application.onCreate`, so it "does not open" rather than crashing visibly, and every static
+    # check in audit-patched-apk.ps1 passed it -- measured 2026-10-13, an invalid register in an
+    # injected early return. No process at all is reported as INCONCLUSIVE rather than a pass, because
+    # a headset that is not being worn sleeps and the shell caches the launch instead of running it.
+    [switch] $SmokeTest,
+
     # Patches that MUST end up applied. Catches the silent failure mode where a newer app version
     # is outside the declared AppTarget in Constants.kt, so the patcher *skips* the patch instead
     # of failing: without this check the result is an unpatched app and a green-looking run.
@@ -346,6 +361,7 @@ if ($Diagnostics) { $extensionOptions['enableDiagnostics'] = $true }
 if ($VerboseLogging) { $extensionOptions['forceVerboseLogging'] = $true }
 if ($IdentityProbe) { $extensionOptions['enableIdentityMatrix'] = $true }
 if ($NativeFormats) { $extensionOptions['enableNativeFormats'] = $true }
+if ($ForceFallback) { $extensionOptions['forceFallback'] = $true }
 if ($extensionOptions.Count -gt 0) {
     $patchOptions['Extension'] = $extensionOptions
     $enableStep1 += 'Extension'
@@ -544,6 +560,39 @@ $target = if ($NoClone) { 'com.google.android.apps.youtube.vr.oculus' } else { $
 & $adbPath shell am force-stop $target | Out-Null
 & $adbPath logcat -c | Out-Null
 
-Write-Host "`nDone. Launch it in the headset from the library (Unknown Sources)." -ForegroundColor Green
+if ($SmokeTest) {
+    # The one check that catches what no static audit can: an injected hook the verifier rejects. The
+    # app dies in Application.onCreate, so it reads as "the app does not open" rather than a crash.
+    # The log buffer was just cleared, so anything in the crash buffer now is this launch.
+    Write-Host "`n[smoke] launching $target to see whether it survives" -ForegroundColor Cyan
+    $adbTarget = @()
+    if ($env:ANDROID_SERIAL) { $adbTarget = @('-s', $env:ANDROID_SERIAL) }
+    & $adbPath @adbTarget shell input keyevent KEYCODE_WAKEUP | Out-Null
+    & $adbPath @adbTarget shell am start -a android.intent.action.VIEW `
+        -d 'https://www.youtube.com/watch?v=aqz-KE-bpKQ' `
+        -n "$target/com.google.android.apps.youtube.vr.activities.YouTubeVrActivity" | Out-Null
+    Start-Sleep -Seconds 20
+    $crash = @(& $adbPath @adbTarget logcat -d -b crash -v brief 2>&1)
+    $fatal = @($crash | Where-Object {
+            $_ -match 'FATAL EXCEPTION|VerifyError|ClassCastException|NoClassDefFoundError|NoSuchMethodError'
+        })
+    $alive = (@(& $adbPath @adbTarget shell pidof $target 2>&1) -join '').Trim()
+    if ($fatal.Count -gt 0) {
+        Write-Host '[smoke] the app crashed:' -ForegroundColor Red
+        $fatal | Select-Object -First 4 | ForEach-Object { Write-Host "        $($_.Trim())" -ForegroundColor Red }
+        Fail 'the smoke test found a crash: an injected hook the verifier rejected, or an early return the app cannot accept'
+    }
+    if ($alive) {
+        Write-Host "[smoke] PASS: still running (pid $alive) and no crash in the buffer" -ForegroundColor Green
+    } else {
+        Write-Host '[smoke] INCONCLUSIVE: no process and no crash in the buffer' -ForegroundColor Yellow
+        Write-Host '        the headset is probably asleep or showing a Guardian dialog, which makes the' -ForegroundColor DarkGray
+        Write-Host '        shell cache the launch instead of running it -- see the measured traps in AGENTS.md' -ForegroundColor DarkGray
+    }
+}
+
+if (-not $SmokeTest) {
+    Write-Host "`nDone. Launch it in the headset from the library (Unknown Sources)." -ForegroundColor Green
+}
 Write-Host "If the shell shows a stale 'app name not available' panel after many re-installs," -ForegroundColor DarkGray
 Write-Host "restart the headset once: adb reboot" -ForegroundColor DarkGray
