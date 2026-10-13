@@ -3,7 +3,7 @@
 // detekt runs with defaults plus a baseline of pre-existing findings, so new code is checked and
 // old code is not churned. Both fail buildAndroid, the task the CI gate runs.
 plugins {
-    id("com.diffplug.spotless") version "7.2.1"
+    id("com.diffplug.spotless") version "8.10.4"
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
