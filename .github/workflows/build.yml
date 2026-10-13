@@ -15,6 +15,12 @@ on:
     paths:
       - 'patches/**'
       - 'extensions/**'
+      # The audit runs as a step of this workflow (and its lint proves itself with -SelfTest), so a
+      # change to the script or the dex reader behind it has to re-run the build: otherwise the one job
+      # that verifies them never fires. Measured 2026-10-13: a DexAudit change pushed to develop
+      # produced no Build run at all, because `tools/**` was not in this list.
+      - 'scripts/**'
+      - 'tools/**'
       - 'buildSrc/**'
       - 'gradle/**'
       - 'build.gradle.kts'
@@ -23,6 +29,17 @@ on:
       - 'gradlew'
       - 'gradlew.bat'
       - '.github/workflows/build.yml'
+  # Pull requests *into* develop -- in practice the Dependabot update PRs -- are built before they
+  # are merged. Without this they carried no checks at all: their head branch is a `dependabot/*`
+  # branch, so the push trigger above never sees it, and the first build of a dependency bump was
+  # the one that ran on develop *after* the merge (measured: the four bumps opened on 2026-10-13
+  # all showed `checks=0`).
+  #
+  # No `paths` filter here on purpose: the point is that nothing merges into develop uncompiled,
+  # and duplicating the list above would give it a second place to drift.
+  pull_request:
+    branches:
+      - develop
   workflow_dispatch:
 
 concurrency:
@@ -52,8 +69,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A blob whose stored line endings disagree with `.gitattributes` reads as permanently modified in
+      # every working tree: `gradlew.bat` did exactly that from the Dependabot wrapper bump until it was
+      # renormalised on 2026-10-13, and a `git rebase --autostash` around it swallowed a pair of edits.
+      # Detection rather than auto-commit on purpose -- a workflow that rewrote line endings on `develop`
+      # would hide the same class of drift instead of surfacing it.
+      - name: Check for line-ending drift
+        run: |
+          git add --renormalize .
+          if ! git diff --cached --quiet; then
+            echo "::error::committed line endings disagree with .gitattributes; run: git add --renormalize . && git commit"
+            git diff --cached --stat
+            exit 1
+          fi
+
       - name: Setup Java
-        uses: actions/setup-java@v6.0.0
+        uses: actions/setup-java@v6.0.1
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -77,8 +108,19 @@ jobs:
       - name: Build
         run: ./gradlew buildAndroid --no-daemon
 
+      # The half of the audit that needs no stock APK: every extension member a patch template names
+      # must exist in the bundle's extension dex. The rest of scripts/audit-patched-apk.ps1 needs the
+      # app's APK, which cannot live on a runner, so those checks stay local.
+      - name: Audit the bundle
+        shell: pwsh
+        run: |
+          $mpp = Get-ChildItem patches/build/libs/*.mpp |
+            Where-Object { $_.Name -notmatch 'sources|javadoc' } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          pwsh -NoProfile -File scripts/audit-patched-apk.ps1 -Bundle $mpp.FullName -SelfTest
+
       - name: Upload the bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: patches-bundle
           # @actions/glob supports a leading ! negation, not !(a|b) extglobs, so list the sources/javadoc

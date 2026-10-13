@@ -1,0 +1,15 @@
+// Hooks that are correct with no dex caller, one per line:
+//
+//     <owner>#<method>   // why the absence of a caller is fine
+//
+// `#` separates the owner from the method, so `//` starts the reason.
+//
+// This list is EMPTY on purpose, and that is the healthy state: scripts/audit-patched-apk.ps1 explains
+// the legitimate shapes by itself -- a supertype declaration the method overrides (a lifecycle callback
+// or a framework/JNI method, found by walking the class's supertypes inside the dex), a call site or
+// method handle (a lambda), and -- for names long enough to mean anything -- a native library that
+// contains the name. Add a line only when a hook is genuine and none of those apply, and say *why*.
+//
+// The audit also reports entries here that no longer match a hook, so this file cannot rot into
+// explaining nothing. Verified when it was introduced: with all 26 hooks of the 2026-10-13 build,
+// every hook was explained by the tool and the reachability check reported zero unexplained.

@@ -93,28 +93,25 @@ param(
     # Patches that MUST end up applied. Catches the silent failure mode where a newer app version
     # is outside the declared AppTarget in Constants.kt, so the patcher *skips* the patch instead
     # of failing: without this check the result is an unpatched app and a green-looking run.
-    # Defaults to every patch that is on by default, because the app version this repo supports is
-    # exactly one and a skip in any of them is a broken build; the two opt-in patches (Hide
-    # stitched ads, Disable QUIC) are not listed. Override with -RequirePatches.
+    # Every patch in the bundle is on by default (the last opt-in one, QUIC, became the switch that
+    # installs the in-headset QUIC row), so all of them are listed. Override with -RequirePatches.
     [string[]] $RequirePatches = @(
         'App name',
         'Default video quality',
-        'Disable DRC audio',
         'Extension',
         'Hide ads',
         'Install as clone',
+        'QUIC (HTTP/3)',
         'Remove viewer discretion dialog',
         'SponsorBlock',
         'Spoof app version',
         'Spoof package name in User-Agent'
     ),
 
-    # Opt-in patches to turn on for this run, for the patches that are off by default (Hide
-    # stitched ads, Disable QUIC). SponsorBlock is `default = true` now, so the
-    # patcher selects it on its own; it stays in this list so a run against an older bundle
-    # still cannot silently drop the settings screens (which is exactly what happened on
-    # 2026-10-11). Passing -ExtraPatches replaces this list, so name SponsorBlock alongside
-    # anything else you need. Its options keep their defaults.
+    # Extra patches to turn on for this run. Nothing is off by default any more, but naming
+    # SponsorBlock keeps a run against an older bundle from silently dropping the settings screens,
+    # and it stays in this list for that reason. Passing -ExtraPatches replaces this list, so name
+    # SponsorBlock alongside anything else you need. Its options keep their defaults.
     [string[]] $ExtraPatches = @('SponsorBlock'),
 
     # Rename with the official bundle's universal "Clone app" instead of this bundle's
@@ -132,6 +129,10 @@ param(
 
     # Skip adb install.
     [switch] $NoInstall,
+
+    # Skip the post-patch audit (scripts\audit-patched-apk.ps1). That audit is what catches a stale
+    # bundle and an injected call with no check-cast; skip it only to inspect a half-built APK.
+    [switch] $SkipAudit,
 
     # adb executable; resolved from PATH / common install locations when not given.
     [string] $Adb
@@ -368,6 +369,48 @@ if (-not $NoClone -and -not $OfficialClone) {
 foreach ($extra in $ExtraPatches) { $enableStep1 += $extra }
 # Naming the patches whose options are set is harmless (they are default-enabled anyway) and it
 # keeps the printed command readable now that the values live in the options file.
+# The bundle must correspond to the sources on disk, and a green `Applied:` list cannot tell you when
+# it does not: on 2026-10-13 a review agent had the extension sources moved aside while `buildAndroid`
+# ran, so the bundle that got installed did not contain the crash fix the source did.
+#
+# Timestamps alone are the wrong signal -- a checkout or a rebase rewrites every mtime without changing
+# a byte -- so this compares a hash of the sources with the hash this script recorded when it last
+# patched, together with the bundle's own hash. Edited sources + an unchanged bundle is the stale case;
+# a rebuild changes the bundle's hash and clears it.
+function Get-SourcesHash {
+    $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $files = Get-ChildItem (Join-Path $root 'patches\src'), (Join-Path $root 'extensions\src') -Recurse -File |
+        Sort-Object FullName
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($file in $files) {
+        [void]$builder.Append($file.FullName.Substring($root.Length)).Append(':')
+        [void]$builder.Append((Get-FileHash $file.FullName -Algorithm SHA256).Hash)
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $digest = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($builder.ToString()))
+    return (([System.BitConverter]::ToString($digest) -replace '-', '').Substring(0, 16))
+}
+
+$stateDir = Join-Path $PSScriptRoot '..\build\probe\audit'
+New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+$stateFile = Join-Path $stateDir 'bundle-sources.sha'
+$sourcesHash = Get-SourcesHash
+$bundleHash = (Get-FileHash $bundle -Algorithm SHA256).Hash
+if (Test-Path $stateFile) {
+    $recorded = ((Get-Content $stateFile -Raw).Trim() -split '\s+')
+    if ($recorded[0] -ne $sourcesHash -and $recorded[1] -eq $bundleHash) {
+        Fail ("the bundle was built from different sources: last patched at source hash {0}, sources are now {1}, and the bundle has not changed. Run .\gradlew.bat buildAndroid first" -f $recorded[0], $sourcesHash)
+    }
+} else {
+    # First run here: no recorded hash, so fall back to timestamps as a note rather than a stop.
+    $newestSource = Get-ChildItem (Join-Path $PSScriptRoot '..\patches\src'), (Join-Path $PSScriptRoot '..\extensions\src') -Recurse -File |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($newestSource -and (Get-Item $bundle).LastWriteTime -lt $newestSource.LastWriteTime) {
+        Write-Host "   note: the bundle is older than $($newestSource.Name); if the sources were edited since the last build, rebuild" -ForegroundColor Yellow
+    }
+}
+Set-Content -Path $stateFile -Value "$sourcesHash $bundleHash" -Encoding ascii
+
 $result1 = Invoke-Patch -Bundle $bundle -InputApk $Apk -OutputApk $step1 `
     -Enable $enableStep1 -Disable $disableStep1 -PatchOptions $patchOptions
 Assert-NoFailedPatches $result1 'our patches'
@@ -478,12 +521,22 @@ if ($OfficialClone) {
     }
 }
 
+# --- 2c. audit the patched APK --------------------------------------------------------
+# The fast half of scripts\audit-patched-apk.ps1: does the shipped extension dex carry what the
+# sources declare, and is there an injected Object-returning call without its check-cast. The slow
+# checks (reachability, the settings XML) stay on demand: run the audit with no -Skip switches.
+if (-not $SkipAudit) {
+    Write-Host "`n[audit] checking $final against the sources" -ForegroundColor Cyan
+    $auditScript = Join-Path $PSScriptRoot 'audit-patched-apk.ps1'
+    & pwsh -NoProfile -File $auditScript -Apk (Resolve-Path $final).Path -Root (Resolve-Path (Join-Path $PSScriptRoot '..')).Path -SkipXml -SkipReach -SelfTest
+    if ($LASTEXITCODE -ne 0) { Fail 'the audit failed: see the FAIL lines above (the patched APK is still on disk)' }
+}
+
 # --- 3. install -----------------------------------------------------------------------
 if ($NoInstall) {
     Write-Host "`n[3/3] skipped install; apk is at $final" -ForegroundColor Yellow
     exit 0
-}
-Write-Host "`n[3/3] installing $final" -ForegroundColor Cyan
+}Write-Host "`n[3/3] installing $final" -ForegroundColor Cyan
 $adbPath = Resolve-Adb
 & $adbPath install -r $final
 if ($LASTEXITCODE -ne 0) { Fail 'adb install failed' }

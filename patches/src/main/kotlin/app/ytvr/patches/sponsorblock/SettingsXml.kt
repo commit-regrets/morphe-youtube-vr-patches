@@ -344,11 +344,20 @@ private const val VIDEO_QUALITY_TITLE = "Default video quality"
 private const val VIDEO_QUALITY_SUMMARY = "Highest available"
 
 /**
- * The hub's rows: the feature entries, the video quality picker, then the diagnostic switch. The
- * switch sits on the hub rather than inside a feature's screen because it gates the whole
- * extension, not SponsorBlock -- and it needs no click handler of its own, because a
- * `SwitchPreference` persists itself. The quality picker is a hub-level row for the same reason:
- * it configures the Default video quality patch, not SponsorBlock.
+ * The hub's "QUIC (HTTP/3)" switch: read by the extension's `QuicTransport` where Cronet builds its
+ * engine. Positive-sense on purpose -- on means QUIC is allowed -- so the row, the patch option and
+ * the description all read the same direction. A change only applies after the app restarts.
+ */
+private const val QUIC_ENABLED_KEY = "ytvr_mod_quic_enabled"
+private const val QUIC_TITLE = "QUIC (HTTP/3)"
+private const val QUIC_SUMMARY =
+    "HTTP/3 over UDP. Turn off if playback stalls on a network that blocks UDP (restart to apply)."
+
+/**
+ * The hub's rows: the feature entries, the runtime settings this port owns (video quality, QUIC),
+ * then the diagnostic log gate. They sit on the hub rather than inside a feature's screen because
+ * they configure patches, not SponsorBlock. A `SwitchPreference` does *not* get to own its own
+ * value here -- see the note on the switch below.
  */
 private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
     "Preference" to listOf(
@@ -362,6 +371,15 @@ private val HUB_ROWS: List<Pair<String, List<Pair<String, String>>>> = listOf(
         // No `android:defaultValue`: a plain `Preference` does not persist one, and the extension
         // seeds the setting from the build option on its first read anyway.
         "android:summary" to VIDEO_QUALITY_SUMMARY,
+    ),
+    // Carries NO `android:defaultValue`, deliberately. androidx persists a `SwitchPreference`'s XML
+    // default the first time the row is bound, which would shadow the value the extension seeded
+    // from the patch option; `CategoryRows` renders the *effective* state and performs the write
+    // instead, exactly as it already does for the log gate.
+    SWITCH to listOf(
+        "android:key" to QUIC_ENABLED_KEY,
+        "android:title" to QUIC_TITLE,
+        "android:summary" to QUIC_SUMMARY,
     ),
     SWITCH to listOf(
         "android:key" to VERBOSE_LOGGING_KEY,

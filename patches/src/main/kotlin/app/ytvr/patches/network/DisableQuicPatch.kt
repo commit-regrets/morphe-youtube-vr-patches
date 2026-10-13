@@ -11,6 +11,7 @@ import app.morphe.patcher.opcode
 import app.morphe.patcher.patch.booleanOption
 import app.morphe.patcher.patch.bytecodePatch
 import app.ytvr.patches.shared.Constants.COMPATIBILITY_YOUTUBE_VR
+import app.ytvr.patches.shared.applicationOnCreateFingerprint
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 
@@ -38,9 +39,9 @@ import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
  *    to `enableQuic`, and the `literal(1)` filter requires a `const 1` immediately
  *    before the call, which is exactly the `enableQuic(true)` this patch flips.
  *
- * The three filters are not decoration -- the patch rewrites the matched constant
- * and re-inserts it after the matched `move-result-object`, so they must stay in
- * this order: `literal(1)` first, then the call, then its result.
+ * The three filters are not decoration -- the patch replaces the matched constant with a call that
+ * asks the extension, and re-inserts the constant after the matched `move-result-object`, so they
+ * must stay in this order: `literal(1)` first, then the call, then its result.
  */
 private val cronetEngineBuilderFingerprint = Fingerprint(
     returnType = "Ljava/lang/Object;",
@@ -57,36 +58,70 @@ private val cronetEngineBuilderFingerprint = Fingerprint(
     ),
 )
 
+/** The extension class that owns the switch, and the seed this patch writes into it. */
+private const val EXTENSION_CLASS = "Lapp/ytvr/extension/QuicTransport;"
+
+/**
+ * Adds the in-headset **QUIC (HTTP/3)** switch.
+ *
+ * The patch is default-on because the switch has to be installed to exist, and its option keeps the
+ * seed at "QUIC allowed" -- the configuration every device measurement in this repository was taken
+ * with. It is named for what the app does with QUIC rather than for the direction of the switch:
+ * upstream's equivalent is *Disable QUIC protocol* with a negative-sense option, and this bundle
+ * reads positively everywhere (patch, option, hub row) so that on means on.
+ *
+ * **A change applies after the app restarts**: Cronet builds its engine once per process, and the
+ * injected call is read there.
+ */
 @Suppress("unused")
-val disableQuicProtocolPatch = bytecodePatch(
-    name = "Disable QUIC protocol",
-    description = "Adds an option (off by default) to disable QUIC (Quick UDP Internet " +
-        "Connections) network protocol; selecting the patch alone changes nothing until " +
-        "the option is enabled.",
-    default = false,
+val quicProtocolPatch = bytecodePatch(
+    name = "QUIC (HTTP/3)",
+    description = "Adds the in-headset switch for QUIC, the transport under HTTP/3: TLS over UDP, " +
+        "used for this app's API and media requests. Leave it on unless playback stalls on a " +
+        "network that blocks or throttles UDP 443 (corporate Wi-Fi, many VPNs), where turning it " +
+        "off forces TCP/TLS. A change applies after the app restarts.",
+    default = true,
 ) {
     compatibleWith(COMPATIBILITY_YOUTUBE_VR)
 
-    val disableQuic by booleanOption(
-        key = "disableQuic",
-        default = false,
-        title = "Disable QUIC protocol",
+    val enableQuic by booleanOption(
+        key = "enableQuic",
+        default = true,
+        title = "QUIC (HTTP/3)",
+        description = "Seeds the in-headset switch on first launch; the Patch settings row " +
+            "governs from the first change there. Off forces TCP/TLS for every request.",
     )
 
     execute {
-        if (disableQuic == true) {
-            cronetEngineBuilderFingerprint.let { fingerprint ->
-                val literalMatch = fingerprint.instructionMatches[0]
-                val moveResultMatch = fingerprint.instructionMatches[2]
-                val register = fingerprint.method
-                    .getInstruction<OneRegisterInstruction>(literalMatch.index).registerA
+        // The seed rides Application.onCreate like the other options, and the extension writes it
+        // through to the setting on its first read, so the hub row shows this build's choice.
+        val seed = if (enableQuic == false) "0x0" else "0x1"
+        applicationOnCreateFingerprint.method.addInstructions(
+            0,
+            """
+                const/4 v0, $seed
+                sput-boolean v0, $EXTENSION_CLASS->buildDefault:Z
+            """,
+        )
 
-                // The register holding the constant also feeds the enableHttp2 call that
-                // follows, so replace the constant passed to enableQuic with false
-                // and restore it to true once the call has returned.
-                fingerprint.method.replaceInstruction(literalMatch.index, "const/4 v$register, 0x0")
-                fingerprint.method.addInstructions(moveResultMatch.index + 1, "const/4 v$register, 0x1")
-            }
+        cronetEngineBuilderFingerprint.let { fingerprint ->
+            val literalMatch = fingerprint.instructionMatches[0]
+            val moveResultMatch = fingerprint.instructionMatches[2]
+            val register = fingerprint.method
+                .getInstruction<OneRegisterInstruction>(literalMatch.index).registerA
+
+            // The matched constant is the flag handed to enableQuic, and the register holding it
+            // also feeds the enableHttp2 call that follows. Ask the extension instead of passing a
+            // constant, so the hub row decides -- and restore `true` afterwards, because that is
+            // what the later call expects.
+            fingerprint.method.replaceInstruction(
+                literalMatch.index,
+                "invoke-static {}, $EXTENSION_CLASS->quicEnabled()Z",
+            )
+            fingerprint.method.addInstructions(literalMatch.index + 1, "move-result v$register")
+            // The two edits above turned one instruction into two, so the fingerprint's own
+            // `moveResultMatch.index` (measured before either edit) is one short: hence +2.
+            fingerprint.method.addInstructions(moveResultMatch.index + 2, "const/4 v$register, 0x1")
         }
     }
 }

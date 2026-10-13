@@ -36,7 +36,6 @@
     <ID>MaxLineLength:ExtensionPatch.kt$returnType = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlatypusEnablingManager\$DecisionWithReason;"</ID>
     <ID>MaxLineLength:SponsorBlockPatch.kt$private</ID>
     <ID>MaxLineLength:SponsorBlockPatch.kt$val receiverRegister = (classRead as com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction).registerC</ID>
-    <ID>MaxLineLength:StitchedAdsPatch.kt$definingClass = "Lcom/google/android/libraries/youtube/media/interfaces/CuePointDataProviderWrapper\$NativeCallback;"</ID>
     <ID>ReturnCount:SponsorBlockPatch.kt$private fun Method.referencesResourceId(id: Int): Boolean</ID>
     <ID>ThrowsCount:SettingsXml.kt$internal fun restructureSettingsXmls( patchWorkspace: File, sbScreenXmlId: Int, categoryDefaults: Map&lt;String, String&gt;, )</ID>
     <ID>ThrowsCount:SponsorBlockPatch.kt$private fun BytecodePatchContext.relabelParallelStack(target: String)</ID>

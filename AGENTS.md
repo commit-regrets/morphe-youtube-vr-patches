@@ -128,6 +128,49 @@ from the device.
   8K quality option disappear from the menu.
 * Diff the applied patch set against the previous build before installing over the user's app.
 
+## Auditing a patched APK (`scripts/audit-patched-apk.ps1`)
+
+Run this after any patch run you intend to trust:
+
+```powershell
+pwsh -NoProfile -File scripts\audit-patched-apk.ps1                       # full audit
+pwsh -NoProfile -File scripts\audit-patched-apk.ps1 -SkipXml -SkipReach    # the fast half
+pwsh -NoProfile -File scripts\audit-patched-apk.ps1 -Bundle patches\build\libs\patches-1.24.0.mpp   # CI mode
+```
+
+`scripts/patch-and-install.ps1` runs the fast half on every install (`-SkipAudit` to bypass) and
+**refuses to patch when the bundle is older than `patches/src` or `extensions/src`**. That staleness
+guard exists because a green `Applied:` list cannot see it: on 2026-10-13 a review agent had the
+extension sources moved aside while `buildAndroid` ran, so the installed bundle did not contain the
+crash fix that was in the source.
+
+| check | the incident it catches |
+|---|---|
+| sources vs the shipped extension dex | a class or static method in `extensions/src` that the APK's extension dex does not have -- an APK built from different sources than the ones on disk (the stale-bundle incident above) |
+| patch defaults vs `$RequirePatches` | a default-on patch the install script does not require, so the patcher could skip it silently. This drifted by hand twice on 2026-10-13 (the SSAI removal, then QUIC becoming default-on) |
+| reachability | an app method we injected into that nothing calls. The audit resolves the legitimate shapes itself -- a supertype declaration the method overrides (a lifecycle callback, or Cronet's request factory), a call site or method handle (a lambda), and a native library containing a name long enough to mean anything -- and only complains about what is left. `tools/dexaudit/known-callerless.txt` is the escape hatch for a genuine case it cannot prove, and it is **empty**: the 2026-10-13 build's 26 hooks are all explained by the tool. This is the check that would have flagged the DRC patch on day one, which overrode nothing and was read by nothing |
+| cast lint | an object result stored into a field of another type with no `check-cast`: the `saj` VerifyError, which launches fine and dies at the first video. `-SelfTest` points the lint at the pre-fix fixture and fails if it does not fire -- CI runs that, because a lint that cannot fire is worse than none |
+| settings XML | an unqualified `@name` reference (the encoder stores it as a raw string and the hub crashes on inflation), plus a printed list of the hub's rows and summaries, so a row whose advice `CategoryRows` overwrites is visible instead of invisible |
+| bundle mode (run by `build.yml`) | a patch template naming an extension member the extension dex does not have -- the half that needs no stock APK |
+
+**Four of these checks were wrong when first written, and each failed silently rather than noisily** --
+worth knowing before trusting any check added here. The caller needle was built as `Lsaj;;-><init>(`
+(the inventory's owner already carries its `;`), so *every* hook looked caller-less. The `inherited` mode
+was handed `Lowner;#method` -- the audit's own site format -- while parsing `Lowner;->method`, so no
+override was ever found. The sink pattern allowed one register where smali's `iput-object` takes two
+(`iput-object vA, vB, Lclass;->field:Type`), so the cast lint never fired. And a one-character method name
+(`a`) is a substring of every `.so` ever built, so the native-string test "explained" twenty hooks at
+once. Measure a check against a case it *must* catch: `-SelfTest` now enforces that for the lint, and the
+reachability list is the check's own report of what it could not explain.
+
+Two PowerShell traps are baked into that script's shape, because both cost time here: a function must
+print **only** what it means to return (javac's chatter joined the returned classpath and every later
+call operator was rejected as invalid), and no local may be called `$java` (it shadows the JDK path,
+and the next invocation tries to execute a `.java` file as a command).
+
+The dex reader is `tools/dexaudit/DexAudit.java`, compiled on demand against the patcher's own
+`smali-dexlib2` + guava out of the Gradle cache, so the audit and the patcher agree on what a dex says.
+
 ## Measured traps (each verified on the device — do not re-try)
 
 | trap | consequence |
@@ -147,6 +190,8 @@ from the device.
 | the two hosts put the patcher's **session** in different places, on the same patcher version: the CLI keeps one directory holding both the decoded tree (`temporaryFilesPath/apk/resources/…`) and the workspace (`PatcherConfig`: `fileWorkspace = temporaryFilesPath.resolve("workspace")`), while Morphe Manager deliberately splits them — tree under `cacheDir/patcher` where `cacheDir = fs.tempDir = app.getDir("ephemeral")`, workspace under `context.cacheDir/patch-workspace` ("Not under tempDir because the patcher wipes that directory when it starts") | anything deriving a path from `fileWorkspace.parentFile` works from the CLI and fails under Manager. **Found from a real Manager run** (Manager 1.35.0, patcher 1.15.1): `PatchException: Patch settings: no settings preferences XML under …/cache; looked for settings_prefs.xml, panel2_settings_prefs.xml` at `SettingsXml.kt:54`, from `sponsorBlockPatch$lambda$0$11` (`SponsorBlockPatch.kt:1586`) — the whole SponsorBlock pass aborted, so the user got no settings screens. The named path is the workspace's *parent* (`…/cache`), one level below the app-data root that covers both `app_ephemeral/…` and `cache/…` — two levels above the workspace, which is what `SettingsXmlKt.restructureSettingsXmls` now walks (bounded ancestors, nearest first, every root named in the exception) |
 | a plain androidx `SwitchPreference` on these screens can show the new state while `<package>_preferences` never receives the key | **explained 2026-10-11**: the screens' fragment sets its preference storage name to `"youtube"` before inflating (`fyp.W` calls `cfy.g("youtube")`; `cfy.c()` is `getSharedPreferences(name, 0)`), so every widget row commits to `youtube.xml` while the extension read `<package>_preferences`, a file that has never existed. Runtime proof: the key scan below shows all `ytvr_mod*` keys (pickers, master, markers, verbose) in `youtube.xml`. **Fixed the same day**: `SponsorBlockSettings.modPreferences` now reads and writes `youtube.xml` too, so the widgets own every row again; `CategoryRows.decorateLogGateRow` → `SponsorBlockSettings.setVerboseLogging` still writes the verbose value itself, so the gate follows the tap without waiting for the widget's apply |
 | a settings-XML `@` reference must be **full `@type/name`**: the resource encoder stores an unqualified one (`@ytvr_vq_entries`) as a raw *string* instead of failing, and the attribute's compiled value becomes resource id 0 | opening the "Patch settings" hub crashed with `Resources$NotFoundException: Text array resource ID #0x0` inside `ListPreference` inflation (2026-10-13, the Default video quality picker's `android:entries`/`android:entryValues`). The encoder prints no warning, and a raw `rg -a` over the APK cannot catch it — the compiled XML's string pool holds the literal either way only when unresolved, so the check is a string-pool parse: the hub's pool must contain no `@ytvr_vq` literal, and resources.arsc must hold both array names |
+| **a blob whose bytes disagree with `.gitattributes` reads as permanently modified** | `gradlew.bat` carried CRLF while `.gitattributes` says `*.bat text eol=crlf` (LF in the index), from the Dependabot wrapper bump `68cbae1` until 2026-10-13. `git status` always showed it modified, and a `git rebase --autostash` around it swallowed a pair of edits. The cure is a one-time history fix -- `git add --renormalize gradlew.bat` (that run staged 112 of 112 lines) -- and it cannot be automated into `git add .`, which never renormalises an unchanged file because its stat is unchanged. `build.yml` now fails on any recurrence and prints that command |
+| **an object reaching native code is not evidence that native reads it** | the DRC patch hooked `PlaybackAgnosticUserPreferences.getIsDrcEnabled` on the strength of the object crossing the JNI boundary, and nothing ever read it. Measured 2026-10-13, three ways that agree: **no caller in any dex** (every reference is inside the class itself), the getter's name in **none** of the app's 40 `.so` files (while the sibling `setPlaybackAgnosticUserPreferences` *is* in `libgoogle3.so`), and **no call during a live playback** with the log gate open (`onPlaying` fired, the hook's own line never did). Before trusting a hook, ask what *calls* it — dex first, then the native symbol names, then a real run |
 
 ## SponsorBlock notes
 
@@ -154,10 +199,17 @@ from the device.
   `seekbar-only`, `manual-skip`→normalised to `seekbar-only`, `ignore`), `ytvr_mod_cat_<category>`
   (legacy switches, migrated at start-up), `ytvr_mod_sb_enabled`, `ytvr_mod_sb_markers`,
   `ytvr_mod_sb_skip_once` (legacy), `ytvr_mod_sb_min_duration`, `ytvr_mod_sb_stats_segments`/`_millis`.
+  The hub also carries `ytvr_mod_video_quality`, `ytvr_mod_verbose_logging` and — added 2026-10-13 —
+  `ytvr_mod_quic_enabled`: a patch option seeds each one, and its hub row owns it from the first change
+  onward. QUIC only applies after a restart, because Cronet builds its engine once per process.
+  (`ytvr_mod_drc_disabled` was built the same way and was then dropped with its patch; see the DRC row
+  in INTERNALS.md for why nothing read it.)
 * The palette lives in `CategoryColours` and is shared by the seek-bar overlay and the settings rows,
   so a marker and its row cannot disagree.
-* `CategoryRows` owns the row UI: colouring, the in-row behaviour list, and the summaries of the two
-  display-only rows (`Stats`, `Minimum segment duration`).
+* `CategoryRows` owns the row UI: colouring, the in-row behaviour list, the summaries of the two
+  display-only rows (`Stats`, `Minimum segment duration`), and the one switch row whose *write* it owns
+  as well (`QUIC (HTTP/3)`) — a `SwitchPreference` persists its own XML default on first bind, so a
+  seeded row must not declare one.
 * Upstream's default map is what ships (`sponsor=skip-once`; selfpromo/interaction/highlight/intro/
   outro/music_offtopic = `seekbar-only`; preview/hook/filler = `ignore`), and `migrateOldDefaults()`
   moves rows still holding this port's older defaults so the change is actually seen.
@@ -276,9 +328,10 @@ negation, not `!(a|b)` extglobs. Use a `path: |` list with `!...` exclusion line
 **Attest.** `release.yml`'s `Attest` step fails on a private repository ("feature not available for
 user-owned private repositories") — cosmetic, and it should pass once the repository is public.
 
-**Morphe Manager: the mechanics that are not visible from here.** None of the four below can be read
-off this repository, and each one has already looked like a bug report ("there is no clone option",
-"my stock app is gone"):
+### Morphe Manager: the mechanics that are not visible from here
+
+None of the four below can be read off this repository, and each one has already looked like a bug
+report ("there is no clone option", "my stock app is gone"):
 
 * **Simple mode never draws a patch list for this app.** Simple mode applies only the patches selected
   by default, and for YouTube VR the official bundle contributes none, so a Simple-mode run applies

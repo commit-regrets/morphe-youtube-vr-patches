@@ -83,7 +83,7 @@ on purpose:
 | still name-shaped | why that is fine |
 |---|---|
 | the two `platypusEnable` method names | the class (`PlatypusEnablingManager`) is a readable library class, and the two methods are pinned by `Z` + parameter count 2 / 3 |
-| the DAI URI/break pair in `ads/StitchedAdsPatch.kt` | no discriminating shape, and the patch is off by default, so a rename fails loudly instead of hooking the wrong method (last section) |
+| the DAI URI/break pair (in the removed `StitchedAdsPatch.kt`, see below) | no discriminating shape, and that patch was off by default, so a rename failed it loudly instead of hooking the wrong method (last section) |
 | `PlaybackAgnosticUserPreferences`, cronet's `CronetUrlRequestContext`, the manifest `Application` | not obfuscated names at all: library/framework types that R8 keeps |
 | `R.id.seekbar_bg` (`SponsorBlockPatch.kt`) | a hand-kept *resource id*, not a name: the line view is referenced by the layout, never by code, so no fingerprint can mine it. It sits beside the five mined ids with that comment, and the overlay falls back to the played bar's parent if it resolves to nothing — so a renumbering costs the exact inset match, never a wrong hook |
 
@@ -187,8 +187,8 @@ with jadx on that dex alone, which agreed):
 | `SpoofAppVersion` code | `I(Context)` in the class holding that key | 1 | `Locn;` / `a` |
 | `SpoofUserAgentPackage` | `String` return + `" (Linux; U; Android "` + the `getPackageName()` call it rewrites | 1 | `Lagtm;` / `a` + full prototype |
 | `DisableQuic` | **unchanged**: `Object(Object,Object)` + `youtubei.googleapis.com` + `const 1` → `enableQuic` → `move-result-object` | 1 | already name-free; the proposed conjunction measures 2 and was rejected |
-| `StitchedAds` info | `(J)` returning the generated `ServerStitchedDaiInfo` + the class holds `daistate` + the body *uses* the proto type | 1 | `Lryi;` / `b` |
-| `StitchedAds` uri / break | **left name-based on purpose** | 3 / 134 without the class name | `Lryi;` / `a` and `c` |
+| `StitchedAds` info (**patch removed 2026-10-13**: the ad is stitched into the SABR stream by the server, so no client patch can remove it — the anchors stay here as the re-derivation recipe) | `(J)` returning the generated `ServerStitchedDaiInfo` + the class holds `daistate` + the body *uses* the proto type | 1 | `Lryi;` / `b` |
+| `StitchedAds` uri / break (same removal) | **left name-based on purpose** | 3 / 134 without the class name | `Lryi;` / `a` and `c` |
 | Hide ads renderer | returns `List` + constructs `java.util.PriorityQueue` | 1 (of 10 such constructor sites) | `List` + `oqi.F()` + a `new-instance` window |
 | Hide ads request | the log template alone, plus a "returns a reference" guard for the injected `return-object` | 1 | `Lonm;` / 13 parameters / `tyj.s` |
 | Hide ads slot | `Z` + one reference parameter + the class holds the CISA literal + the body calls `isPresent()` | 1 (shape alone: 12) | `Lmuf;` / `a` + the `mgn.g` lookup |
@@ -198,13 +198,14 @@ with jadx on that dex alone, which agreed):
 
 Two things are deliberately *not* re-anchored:
 
-- **`StitchedAds` uri/break.** Their shapes do not discriminate (`Uri` + `(L,J,J)` matches 3
-  app-wide, `Z(J)` matches 134). The only facts that would pin them are the class's own
-  `daistate`/`acpns` protocol literals — the same fact the info hook above now uses — so anchoring
-  all three on one literal would buy resilience for a patch that is off by default, at the cost of
-  hanging every hook off a single string. Left name-based: a rename then fails this patch loudly
-  (unresolved fingerprint) rather than hooking a wrong method silently. *(Measured if ever wanted:
-  `Uri+(L,J,J)+daistate` → 1, `Z(J)+class holds daistate` → 1.)*
+- **`StitchedAds` uri/break** (its patch was removed 2026-10-13, see the row above). Their shapes do
+  not discriminate (`Uri` + `(L,J,J)` matches 3 app-wide, `Z(J)` matches 134). The only facts that
+  would pin them are the class's own `daistate`/`acpns` protocol literals — the same fact the info
+  hook used — so anchoring all three on one literal would have bought resilience for a patch that was
+  off by default, at the cost of hanging every hook off a single string. They were left name-based,
+  which made a rename fail that patch loudly (unresolved fingerprint) rather than hook a wrong method
+  silently. Kept here as the recipe if the probe is ever wanted again: `Uri+(L,J,J)+daistate` → 1,
+  `Z(J)+class holds daistate` → 1.
 - **`DisableQuic`'s anchor.** The anchor already in the code is name-free and measures 1; the
   conjunction proposed in the notes (`enableQuic` + `enableHttp2` + `setLibraryLoader` in one
   method) measures **2**, because `phn`'s second engine builder chains the same three calls and
