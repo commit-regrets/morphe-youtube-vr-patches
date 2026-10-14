@@ -251,20 +251,35 @@ public final class SponsorBlockSettings {
     };
 
     /**
+     * The most hops {@link #migrateDefault} will follow before giving up. Two is the longest
+     * legitimate chain in the table above; eight leaves room for another default to be retired
+     * without ever letting a cycle hang the app's start-up.
+     */
+    private static final int MAX_DEFAULT_MOVES = 8;
+
+    /**
      * Where a stored value ends up after every applicable move. Chained rather than tested once,
      * because a row can be two defaults behind (`skip` -> `seekbar-only` -> `manual-skip`) and the
      * editor's writes are not visible to the store this reads.
      */
     static String migrateDefault(String category, String stored) {
         String value = stored;
-        for (boolean moved = true; moved; ) {
-            moved = false;
+        // Bounded, and not for style: this runs inside Application.onCreate, so a future edit that
+        // made DEFAULT_MOVES cyclic (`a -> b` and `b -> a`) would spin here forever and the app
+        // would never start -- a failure with no log line and no crash to read. The longest
+        // legitimate chain today is two hops, and each hop must actually change the value.
+        for (int hop = 0; hop < MAX_DEFAULT_MOVES; hop++) {
+            String next = null;
             for (String[] move : DEFAULT_MOVES) {
                 if (move[0].equals(category) && move[1].equals(value)) {
-                    value = move[2];
-                    moved = true;
+                    next = move[2];
+                    break;
                 }
             }
+            if (next == null || next.equals(value)) {
+                break;
+            }
+            value = next;
         }
         return value;
     }
