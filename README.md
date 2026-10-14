@@ -115,7 +115,7 @@ Three behaviours surprise people: a skip is per *pass*, so dragging the seek bar
 makes it skip again; dragging *into* a segment lets that segment play out; and a category set to
 **Disable** does nothing at all, silently — VR has no skip button, so a video whose only segments are
 `filler` or `music_offtopic` looks like SponsorBlock is broken until that category is switched on.
-Measured behaviour and the design: [docs/SPONSORBLOCK-PLAN.md](docs/SPONSORBLOCK-PLAN.md).
+Measured behaviour and the design: [docs/SPONSORBLOCK-NOTES.md](docs/SPONSORBLOCK-NOTES.md).
 
 ### Patch settings (in the headset)
 

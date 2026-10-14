@@ -2,7 +2,7 @@
 
 How to give a patched YouTube VR build real in-app settings — a hub of feature entries, each
 opening its own screen — using nothing but the app's own UI machinery. This is the technique
-behind the SponsorBlock patch's "Patch settings" hub (SPONSORBLOCK-PLAN.md Addenda 14–18, 1.88.10);
+behind the SponsorBlock patch's "Patch settings" hub (SPONSORBLOCK-NOTES.md Addenda 14–18, 1.88.10);
 this page is the generalizable version, written so a future patch author (or agent) can reuse it
 on a newer build without re-deriving it.
 

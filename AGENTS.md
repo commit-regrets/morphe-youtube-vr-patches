@@ -5,7 +5,7 @@ plus a Java extension injected into the app. Read this before touching anything;
 "Measured traps" have each cost a full build-install-device cycle.
 
 Deep detail lives in `docs/`: **`FINGERPRINTS.md`** (measured anchors and anchors measured *not* to
-work — read it first), `INTERNALS.md`, `SPONSORBLOCK-PLAN.md`.
+work — read it first), `INTERNALS.md`, `SPONSORBLOCK-NOTES.md`.
 
 ## Layout
 
@@ -285,7 +285,7 @@ above hangs off it.
 This file is about *how to work here*, not about what the project currently does. The state of the
 hard problems -- the streaming spoof's current limits (unauthenticated `youtubei/v1/player` requests
 being refused for every client tried), the SponsorBlock feature set and what is
-still missing -- is in **`docs/SPONSORBLOCK-PLAN.md`**. Measured
+still missing -- is in **`docs/SPONSORBLOCK-NOTES.md`**. Measured
 anchors and the anchors that *failed* are in `docs/FINGERPRINTS.md`.
 
 One operational rule belongs here, because ignoring it costs an outage: the 8K path depends on a
