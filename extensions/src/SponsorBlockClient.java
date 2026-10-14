@@ -279,7 +279,14 @@ public final class SponsorBlockClient {
                             category,
                             range.getDouble(0),
                             range.getDouble(1));
-            if (segment.endMs > segment.startMs) {
+            // A highlight is a **point**, and the API answers it as one: measured against the live
+            // API for kJQP7kiw5Fk, whose three segments for this client's category list arrive as
+            // two `music_offtopic` ranges and one `poi_highlight` of `[21.808, 21.808]`. The
+            // `end > start` test every other category needs is what dropped it -- which is why the
+            // Highlight category has never done anything here. A zero-length *other* category is
+            // still refused: it could never contain the playhead, so it could never skip.
+            boolean highlight = "poi_highlight".equals(category);
+            if (highlight ? segment.endMs >= segment.startMs : segment.endMs > segment.startMs) {
                 segments.add(segment);
             }
         } catch (Throwable t) {

@@ -49,14 +49,22 @@ public final class CategoryRows {
 
     /** Used only if the resources cannot be read: the same lists the patch bakes in. */
     private static final String[] FALLBACK_LABELS = {
-        "Skip automatically", "Skip automatically once", "Show in seekbar only", "Disable",
+        "Skip automatically",
+        "Skip automatically once",
+        "Show a Skip button",
+        "Show in seekbar only",
+        "Disable",
     };
 
-    private static final String[] FALLBACK_VALUES = {"skip", "skip-once", "seekbar-only", "ignore"};
-    private static final String[] FALLBACK_HIGHLIGHT_LABELS = {
-        "Skip automatically", "Show in seekbar only", "Disable",
+    private static final String[] FALLBACK_VALUES = {
+        "skip", "skip-once", "manual-skip", "seekbar-only", "ignore",
     };
-    private static final String[] FALLBACK_HIGHLIGHT_VALUES = {"skip", "seekbar-only", "ignore"};
+    private static final String[] FALLBACK_HIGHLIGHT_LABELS = {
+        "Skip automatically", "Show a Skip button", "Show in seekbar only", "Disable",
+    };
+    private static final String[] FALLBACK_HIGHLIGHT_VALUES = {
+        "skip", "manual-skip", "seekbar-only", "ignore",
+    };
 
     /**
      * Where a row remembers the colour its own theme gave it, so a recycled row can be restored.
