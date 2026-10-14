@@ -1,37 +1,20 @@
-# SponsorBlock for YouTube VR — research and implementation plan
+# SponsorBlock for YouTube VR — anchors, API contract, and build notes
 
-*Status: **implemented and device-verified** (2026-10-10). The patch (`SponsorBlock`, off by
-default) and the extension (`SponsorBlock*.java`) are written, the bundle builds, the patched dex
-has been verified hook-by-hook (see the addendum at the bottom), and the installed build was
-play-tested on the headset — see the second addendum for the measured verdict and the four bugs it
-exposed, all fixed. Sections 0–8 below are the research as it stood before implementation —
-they remain accurate as background; **§4's two unknowns are now answered** (R1: the position
-accessor is `pwe.a`'s `e()`, duration its `g()`, proven by the TimeInfo snapshot's argument order;
-R2b: the seek is `qhg.F(J, ablw)` with the `SEEK_SOURCE_UNKNOWN` constant, confirmed asynchronously
-by the `onSeeked` hook). What changed vs. the plan: the extension reads the playhead through three
-**bridge methods the patch generates on the player wrapper** (documented in FINGERPRINTS.md), the
-tick is the extension's own 500 ms Handler (the app's UI poller proves main-thread access at
-100 ms), and `onProgressing`/`pwe.D` ended up unhooked (no wall-clock tracker needed with a direct
-accessor).*
-Measured against YouTube VR 1.88.10 (the version this repo supports).*
+*Status: **implemented and device-verified** (2026-10-10). The patch (`SponsorBlock`, on by
+default since 2026-10-11) and the extension (`SponsorBlock*.java`) are written, the bundle builds,
+the patched dex has been verified hook-by-hook, and the installed build was play-tested on the
+headset — the addenda below are that record, including the four bugs it exposed, all fixed.*
 
-## 0. TL;DR for the implementing agent
+*What each section is for now: **§1** the public API contract, **§2** how the phone patch set solves
+the same problem, **§3** the measured player anchors this patch's fingerprints exist for (cited by
+`SponsorBlockPatch.kt`), **§7** the licence and ToS position, and the appendices and **addenda** the
+build log. The pre-implementation plan — its design options, verification plan and task checklist —
+was removed on 2026-10-14: it described work that is finished, and its two open questions (position
+accessor, seek result) were answered while building, by the bridge methods the patch now generates on
+the player wrapper and by the `onSeeked` hook respectively. `git log` has the removed text if a
+design question it debated ever comes back.*
 
-- **Goal**: skip SponsorBlock segments **automatically** in YouTube VR, with the categories the user
-  wants as patch options. No UI: the VR app has no Android views at the point where a skip button
-  would go, and the phone patch's button/toast/seekbar-marker code is presentation, not skipping.
-- **Everything is unblocked except two questions.** (a) reading the **current playback position** —
-  the seek call and every player-state callback are already identified and *measured unique* (§3), but
-  none of them hands over the playhead during playback; and (b) **what a seek does and how we know it
-  worked** — the phone implementation gets a boolean back and aborts on false, while `pwe.o` returns
-  void. Both are tasks below (**R1**, **R2b**) and both gate the feature (§4 lists the candidate
-  routes, in order, with the exact commands to run).
-- **Do not start with the patch.** Start with R1: if no position is readable from Java, the design has
-  to change shape entirely (§4's fallbacks), and everything else is wasted work.
-- **Style rules of this repo** (they matter more than they look): fingerprints anchor on facts R8
-  cannot rename and every anchor gets a measured uniqueness count; the injected smali stays trivial
-  and all logic lives in `extensions/src/*.java`; verification is *reading the patched dex*, never
-  trusting `Applied:` (see [FINGERPRINTS.md](FINGERPRINTS.md), [INTERNALS.md](INTERNALS.md)).
+*Measured against YouTube VR 1.88.10 (the version this repo supports).*
 
 ## 1. The feature and its API contract
 
@@ -176,7 +159,7 @@ which contradict reasonable guesses:
   the length is not yet known (the clamp yields -250) or when both the current time and the target are
   inside the last 250 ms; a failed seek restores the previous undo range and aborts, which is what
   makes "switching videos" harmless. **`pwe.o(J, Lablw;)V` returns void**, so a VR port needs its own
-  success/failure signal — see §4.
+  success/failure signal — which this port gets from the `onSeeked` hook (see the heading).
 - **The ad gate already has a hook here**: the phone's `setAdProgressTextVisibility(int)` is set from
   the ad-progress view's `setVisibility` and read as `== VISIBLE`. Our equivalent is
   `PotUrls.onAdCountdown(int remainingMs)` ([PotUrls.java](extensions/src/PotUrls.java)), hooked from
@@ -214,7 +197,7 @@ Context that matters when wiring these:
 - `pwd` is `MedialibPlayerEvents` — the **delegating listener**: every callback logs and then forwards
   to `this.d`, another `pyu`/`pzq` implementation. Three more implementations exist (`pyp`, `pys`,
   `pyt`); hooking the *delegating* one is convenient because it sees every event, but hooking the
-  *terminal* one may be closer to the state the app uses. Decide with R1 in hand.
+  *terminal* one may be closer to the state the app uses. (This port hooks the delegating one.)
 - The callback names and payloads (`onPlaying`, `onPaused`, `onPausedBuffering`, `onPreparing`,
   `onSeeking/onSeeked(positionMillis)`, `onProgressing(playbackStartSystemTimeMs)`,
   `onMediaTimeRangeChange(beginMs,endMs)`, `onPlaybackRateChange(rate)`, `onEnded`, `onStopped`,
@@ -224,178 +207,48 @@ Context that matters when wiring these:
   constructor (`oqb.<init>`) and calls `SpoofStreams.augmentPlayerResponse(playerResponse)`, and the
   app's `zjp` proto carries video details at `g.c` (video id) with the ad slots at `n` — the same
   object the existing code already reads reflectively, resolving fields **by type** rather than by
-  obfuscated name (see [FINGERPRINTS.md](FINGERPRINTS.md)'s "extension side matters" note). So R3 can
-  reuse that call site for "what video is this" instead of a new hook.
+  obfuscated name (see [FINGERPRINTS.md](FINGERPRINTS.md)'s "extension side matters" note). The
+  extension reuses that call site for "what video is this" rather than a hook of its own.
 - Caveat on these anchors: they are **debug log format strings**, not protocol literals. They are in
   the dex, so they anchor a fingerprint today, and if a future build strips them the fingerprint fails
   *loudly* (which this repo treats as acceptable). Note also that in a release build the app may never
   *execute* the logging — irrelevant for anchoring, since the patch injects at instruction 0 of the
   method regardless of whether its own log line ever runs.
 
-## 4. The two unknowns that gate the design (R1: position, R2b: seek result)
+## 4. Risks that still apply
 
-The phone build gets this for free: its patch hooks a callback that fires **every 1000 ms with the
-current media time** and hands it to `SegmentPlaybackController.setVideoTime(ms)` (§2). The VR app has
-no such callback among the hooks identified so far:
+*The two questions this section used to open with — the position accessor and whether a seek
+succeeded — were answered while building (see the heading): the playhead comes from the bridge
+methods the patch generates on the player wrapper, and the seek's result from the `onSeeked` hook.*
 
-- `onProgressing(playbackStartSystemTimeMs)` carries **system** time (when playback started
-  progressing), not media time.
-- `onSeeking/onSeeked(positionMillis)` give the position **only when a seek happens**.
-- `onMediaTimeRangeChange(beginMs, endMs)` describes the seekable range, not the playhead.
-
-So R1 has two possible answers, and the plan works with either: **find the position accessor** (best),
-or **build the tick ourselves** — a `Handler`/scheduled task in the extension calling whatever
-position accessor R1 finds. Note that even the "build the tick" version still needs the accessor; the
-1 Hz cadence is the easy half.
-
-**R2b: what does a seek do, and how do we know it worked?** The phone implementation gets a
-**boolean** back from its seek and relies on it: it clamps the target to `videoLength - 250`, returns
-false when the length is not known yet or when both the playhead and the target are inside the last
-250 ms, and on false it *restores* the previous undo range and aborts the skip — which is what makes
-"the video just changed" a non-event instead of a mis-seek. Our hook, `pwe.o(J, Lablw;)V`, returns
-**void**, so the port needs its own answer to three questions, all answerable by reading the seek path
-and its `onSeeking`/`onSeeked` callbacks in the decompiled sources:
-
-1. Does the VR player clamp or reject a seek near the end of the video, and is the video length
-   available where we would need it?
-2. Can success be observed asynchronously — `onSeeked(positionMillis)` arriving close to the requested
-   value — and used as the guard before marking a segment skipped?
-3. What is the second parameter (`Lablw;`, judging by the method body a seek-source/reason enum)? If it
-   distinguishes user seeks from programmatic ones, passing a "user" value would be wrong; if `null` is
-   acceptable, the method body has to say so.
-
-If (2) is "yes", mark a segment skipped **after** confirmation rather than before — otherwise a
-refused seek silently loses the segment.
-
-Candidate routes for R1, in the order worth trying (each is one command away):
-
-1. **The app's own progress UI reads it somewhere.** Whatever draws the VR scrubber must know the
-   position. Find it and follow it:
-   `rg -n "scrub|progress" apk/jadx-out/sources | rg -v "ProgressBar|Notification"` and read what the
-   VR player UI passes around.
-2. **The player-state snapshot.** `defpackage/snh.java` builds a `" playbackState="` string (a state
-   dump), and `defpackage/pwe.java` has state-returning methods (`a(onu,onu,long,boolean)` returns a
-   long computed from a **time range** in microseconds — note it is *range* maths, not the playhead).
-   Read `snh`'s fields and whoever constructs it.
-3. **The QOE/telemetry path.** The periodic ping to `s.youtube.com/api/stats/qoe` is built by
-   `defpackage/snc.java` (it holds the `"adformat"` literal). It carries ad/format telemetry; if it
-   also carries media time, the call site that fills it tells us which object holds the playhead.
-4. **The listener chain.** `pyp`, `pys`, `pyt` implement the same interface; one of them may be the
-   state tracker that maintains a position from `onProgressing` + wall clock. If it exists, hook *it*
-   and reuse its arithmetic instead of reimplementing it.
-5. **The player wrapper's state object** (`pwe` fields of types `qkl`, `dfu`, `ppk`, `pwo`, `pzt`) —
-   one of them is likely the playback state the UI reads.
-
-**Fallbacks if no accessor exists** (recorded so nobody gets stuck, and so the design can change
-deliberately rather than accidentally):
-
-- **(a) Wall-clock tracker.** Hook `onProgressing(systemTimeMs)`, `onSeeking/onSeeked(pos)`,
-  `onPaused`, `onPlaybackRateChange(rate)`; maintain
-  `pos ≈ lastSeekPos + (now - lastProgressSystemTime) × rate`, and treat the segment boundaries as
-  ±1 s. This is exactly what the phone implementation's "current position" provider does under the
-  hood, but here it depends on `onProgressing` firing often enough and on pausing/buffering being
-  handled. Verify the callback *frequency* before committing to it (log every call for one video).
-- **(b) Ride the DAI/cuepoint channel.** The native player asks the app for server-stitched-ad info
-  per time range (`PlaybackControllerWrapper.getSsdaiInfo(Time)`, the `ryi`/cuepoint path the removed
-  "Hide stitched ads" patch used to hook). If the player honours a returned `TimeRange` by skipping it,
-  SponsorBlock segments could be injected there — no position needed. Two reasons to treat this as an
-  experiment and not the plan: it reintroduces the hooks that patch was removed for (the ad itself is
-  stitched server-side, which no client hook can undo — see the removal note in INTERNALS.md), and it
-  may surface ad-like UI/behaviour for a non-ad segment.
-- **(c) Media-request-level heuristics** (skipping by media segment index): rejected — it needs the
-  DASH/HLS manifest mapping, which the spoofed adaptive formats do not give us.
-
-## 5. Proposed design (fits this repo's architecture)
-
-**Patch**: `SponsorBlock` in `patches/src/main/kotlin/app/ytvr/patches/misc/` (or a new
-`sponsorblock/` package), `default = false` for the first release (the point of a first cut is to be
-verifiable, and auto-seeking surprises people). Options:
-
-- `sponsorBlockApi` (string, default `https://sponsor.ajay.app`) — so a self-hosted instance works,
-  and so the test can point at a local mock. (Morphe validates its equivalent: must be a web URL with
-  no path after the last dot.)
-- **one option per category, holding a behaviour** from `{skip, skip-once, ignore}` — the same three
-  the Music variant exposes, because `manual-skip`/`seekbar-only` are meaningless without a button.
-  A `stringOption` with `values`/`default` is enough; no settings UI is needed.
-- Suggested defaults, chosen rather than inherited: `sponsor = skip-once` (Morphe's default, and the
-  reason a backwards seek does not re-skip a sponsor read), `selfpromo`/`interaction`/`intro`/`outro`
-  = `skip`, `preview`/`hook`/`filler`/`music_offtopic`/`poi_highlight` = `ignore`. Morphe cannot be
-  copied here: its auto-skip defaults are mostly `manual-skip`, which for us would mean "do nothing".
-- `skipHighlight` folds into the `poi_highlight` behaviour rather than being its own switch: the
-  category means "jump *to* this point", so `skip` there is the whole feature and there is no range to
-  skip. Note Morphe only ever keeps the **first** highlight and handles it once, at load.
-- **A cache is our addition**, not a port: Morphe has none (§2). Keep it small and bounded
-  (per-video, in memory, cleared on video change is fine) and note the privacy option in §1 if the
-  reviewer wants it.
-
-**Extension** (`extensions/src`, Java, compiled + dexed by the existing Gradle task). Mirror the
-phone patch's adapter boundary (§2): keep the skip logic free of obfuscated names by giving it a tiny
-host interface, so the obfuscation map touches exactly one file.
-
-- `SponsorBlockApi.java` — the adapter surface, filled in by the hooks: `long getVideoTime()`,
-  `boolean seekTo(long ms)`, `boolean isPreparingOrAd()`, `String getVideoId()`, plus settings
-  (categories, API base). One implementation class, `YtvrSponsorBlockHost.java`, holds the app-facing
-  bits (reflection into the player state, calls to the hooked methods).
-- `SponsorBlockClient.java` — `HttpURLConnection` + `org.json` (both available offline), the
-  `skipSegments` request with the category filter, a per-video cache, a background `Executor`, hard
-  timeouts, a `User-Agent`, and a bounded "do not retry this video for N minutes" map. Never throws
-  into the app (same rule as `TaskLabel`).
-- `SponsorSkipController.java` — the phone controller's essential half, with its real constants:
-  `setVideoId(...)`, `setVideoTime(ms)` (the ~1 Hz entry point, plus an immediate check when a fetch
-  completes), the sorted segment list, `shouldAutoSkip()` with the persistent `didAutoSkipped` flag for
-  `skip-once`, the 500 ms same-segment re-skip guard (`max(500, 500/speed)`), the undo range
-  `[start, end-1]` cleared as soon as the position leaves it, the `1200 * speed` scheduling look-ahead
-  with its staleness re-check, "skip to `segment.end`", and the ad/preparing suppression. Seek through
-  the host interface, never directly, and mark a segment skipped only once the seek is confirmed (R2b).
-- **Wiring**: the patch injects one static call at instruction 0 of the hooked methods (`pwe.j` →
-  `setVideoId`, `pwd.q` → `setVideoTime`, `pwd.t`/`pwd.u` → seek bookkeeping, `pwe.D` → pause). All
-  logic stays in Java; the injected smali is
-  `invoke-static {pN}, Lapp/ytvr/extension/SponsorSkipController;->setVideoTime(J)V` and friends,
-  with the 4-bit register-list trap from INTERNALS.md in mind.
-- **Logging**: `System.out` with a `SponsorBlock:` prefix on every decision
-  (`queued <videoId>`, `fetched N segments (M skippable)`, `skipping sponsor 12.3s -> 45.6s`,
-  `skip suppressed: ad/preparing`), because that is the device-test oracle. Without it there is no
-  way to tell "no segment here" from "the hook never ran".
-
-## 6. Verification plan (do not skip the dex step)
-
-1. Build the bundle, apply with `-OenableDiagnostics=true`, then read the **patched dex** (the last
-   `classesN.dex`): the injected calls must be at instruction 0 of exactly the intended methods, and
-   the patched-class set must be the baseline plus only the newly hooked classes. For the hooks in
-   §3 that means the documented 17-class baseline (see [FINGERPRINTS.md](FINGERPRINTS.md)) **plus
-   `pwe` and `pwd`** — the video-id capture needs no new class, because `oqb` is already patched by
-   the Extension. If anything else appears in that dex, a fingerprint matched more than it should.
-2. Confirm the fingerprint counts *before* trusting them: each new anchor goes through
-   `apk/scratch/Measure.java`/`Inspect.java` and its count is recorded in
-   [FINGERPRINTS.md](FINGERPRINTS.md) — ambiguity here is silent (see that file's first section).
-3. Device: pick a video with a segment (**query the API from the PC first** and note the times), play
-   it, and look for the skip line in logcat plus the jump in playback. Control: a video with no
-   segments must produce no skip lines. A segment verified on 2026-10-10 that is long enough to see
-   and to be worth testing by hand:
-
-   ```bash
-   curl -s 'https://sponsor.ajay.app/api/skipSegments?videoID=aqz-KE-bpKQ&categories=[%22outro%22]&actionTypes=[%22skip%22]'
-   # -> [{ "category":"outro", "actionType":"skip", "segment":[494.6179,618.71356], "UUID":"f6703b03…" }]
-   ```
-
-   Two minutes of `outro` starting at 8:15 — enable the `outro` category for the test (it is `ignore`
-   in the suggested defaults), or pick a video with a `sponsor` segment. Note that the API is queried
-   from the PC here, so this step also proves the network path independently of the app.
-4. Ad interplay: make sure a skip cannot fire while the app is preparing or showing its own ad UI
-   (`onPreparing`, and the countdown hook the Extension patch already installs, are the signals).
-5. Send `actionTypes=["skip"]` in the request (Morphe does not, and never reads the field) — otherwise
-   a `mute`/`full` segment would be treated as a range to seek past, which is not what those
-   action types mean.
-
-## 7. Risks and open questions
-
-- **The position accessor.** Blocks everything (R1). Also the main reason this document exists rather
-  than code.
-- **Seek semantics (R2b).** `seekTo` returning void means "did the skip work" is not free; a refused
-  seek near the end of the video must not silently mark a segment as done.
 - **Re-skip behaviour is a choice, not an accident.** With `skip` (as opposed to `skip-once`), seeking
   backwards into a segment skips it again; the only automatic protection is the 500 ms same-segment
   guard. Decide per category and write it down, because it is the first thing a user will notice.
+- **Log-literal anchors** can disappear if a future build strips debug logs: loud failure, but it
+  means these hooks need re-derivation at the next version bump. (This is the general rule in
+  [FINGERPRINTS.md](FINGERPRINTS.md); §3's table is the one this patch's fingerprints rest on.)
+- **Threading**: the fetch must never run on the player/event thread; a slow server must not stall
+  playback. Bounded timeouts + a background executor + "skip only with an already-fetched list".
+- **Seek cost**: each skip is a real seek in the native player; overlapping segments are **not** merged
+  by Morphe (it sorts by start, longer first, and handles nesting), so a port that keeps the same
+  shape will issue one seek per nested segment unless it also marks contained segments as skipped,
+  the way Morphe does with its `didAutoSkipped` sweep.
+- **`actionType`**: only `skip` in v1; `mute`/`full`/`chapter` need different machinery (`poi` is the
+  highlight jump).
+- **Etiquette/abuse**: a `User-Agent` that identifies the client, a per-video cache, no polling; no
+  voting, no submission, no `userID` in v1. The API asks that submissions never be automated, and the
+  hash-prefix form (§1) is the privacy-preserving alternative if that matters to the reviewer.
+- **Licensing (read this before copying anything)**: Morphe is **GPL-3.0 with a `NOTICE` that adds
+  GPLv3 §7 terms** — derivative source *and binaries* must carry the NOTICE, modified versions must be
+  marked as different and must not misrepresent origin, and there are no trademark rights to
+  "Morphe". `ReVanced/revanced-patches`, Morphe's other ancestor, is **unavailable under a DMCA
+  takedown** (HTTP 451, notice `2026-03-12-morpheapp.md`), so it cannot be read at all. The
+  SponsorBlock **service** is separately licensed **CC BY-NC-SA 4.0** (non-commercial, attribution,
+  share-alike) with "automating submissions is not allowed". This repo is GPL-3.0 with its own §7c
+  name restriction. Conclusion: **reimplement from the behaviour described here and cite the files
+  read**, rather than pasting Morphe code — GPLv3→GPLv3 would be compatible, but almost nothing is
+  reusable verbatim (different UI, settings system and player), and any *published* fork of this repo
+  still carries Morphe's NOTICE obligations.
 - **Log-literal anchors** can disappear if a future build strips debug logs: loud failure, but it
   means these hooks need re-derivation at the next version bump.
 - **Threading**: the fetch must never run on the player/event thread; a slow server must not stall
@@ -420,18 +273,6 @@ host interface, so the obfuscation map touches exactly one file.
   read**, rather than pasting Morphe code — GPLv3→GPLv3 would be compatible, but almost nothing is
   reusable verbatim (different UI, settings system and player), and any *published* fork of this repo
   still carries Morphe's NOTICE obligations.
-
-## 8. Task checklist (ordered; each has a "done when")
-
-| # | task | done when |
-|---|---|---|
-| R1 | find the playback-position accessor (§4) | a call from the extension returns the current position in ms while a video plays, shown by a log line, and its anchor is recorded |
-| R2b | establish the seek's contract: clamping, rejection near the end, the `Lablw;` argument, and how success is observed (`onSeeked`) | a log line shows a requested skip and the resulting `onSeeked` position, including one deliberately near the video end |
-| R2 | measure the fingerprints for the hooks in §3 (+ the position hook from R1) | each predicate matches **exactly one** method of the stock 1.88.10 dex, counts written down |
-| R3 | API client + cache in the extension | a log line shows the parsed segment list for a known video id, with the category filter and `actionTypes=["skip"]` applied |
-| R4 | skip controller + guards, wired by the patch | on device, a video with a known segment (§6's `aqz-KE-bpKQ` outro, or one with a sponsor segment) logs the skip and playback jumps; a control video stays silent |
-| R5 | patch options (per-category behaviour, API base) | turning a category to `ignore` removes that skip from the log; `skip-once` survives a backwards seek and `skip` does not |
-| R6 | docs: FINGERPRINTS.md rows (anchor + count), INTERNALS.md hook-map rows, README user-facing section | the reviewer (me) can re-derive every hook from the docs alone |
 
 ## Appendix: reproduction commands used for §3
 
@@ -479,8 +320,10 @@ unreadable, so its current endpoint choice is unknown.
 **Not settled by any of the above** (do not treat as fact): whether the `?videoID=` form is deprecated
 or can be disabled; the server's exact `actionTypes` default for `poi_highlight` (it is returned as
 `"skip"` when the filter is omitted and as `"poi"` when `actionTypes=["poi"]` is sent, same UUID);
-whether anything below the app's HTTP stack caches segment responses; and the VR app's own position
-accessor (R1) and seek contract (R2b), which are this port's to establish.
+whether anything below the app's HTTP stack caches segment responses. The VR app's own position
+accessor and seek contract, listed here as open when this was research, were established while
+building: the playhead comes from the bridge methods the patch generates on the player wrapper, and
+the seek's result from the `onSeeked` hook.
 
 ## Addendum: what was built (2026-10-10)
 

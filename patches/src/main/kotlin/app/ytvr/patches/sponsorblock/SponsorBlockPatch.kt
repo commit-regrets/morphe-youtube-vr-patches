@@ -78,8 +78,8 @@ private const val ID_SEEKBAR = 0x7f0b0a23
 
 /**
  * `R.id.seekbar_bg`: **the line itself** — a 387x9 view inside the track, the sibling the
- * played/buffered bars are drawn over. Measured on device (the dump in
- * SPONSORBLOCK-PLAN.md Addendum 6): the track is 387 wide with 9px margins inside a
+ * played/buffered bars are drawn over. Measured on device (the dump in the SponsorBlock
+ * notes, Addendum 6): the track is 387 wide with 9px margins inside a
  * 405px container, and this child is the 387x9 StateListDrawable that is what a viewer
  * sees as "the seek bar". The markers copy *its* bounds, which is what makes them line
  * up exactly. It is not referenced from code, so this constant is the one hand-kept id
@@ -152,14 +152,6 @@ private val seekbarTimelineFingerprint = Fingerprint(
             } == true
     },
 )
-
-/**
- * The settings panel's layout (`R.layout.accounts_and_settings_fragment`, 1.88.10).
- * Exactly one method references this inlined id — the panel fragment's inflate call —
- * so the class is identified by the id and the "Patch settings" row is hooked into its
- * `(View, Bundle)` view-created callback. Structural: an inlined resource id plus a
- * method shape, nothing name-bound.
- */
 
 /**
  * `R.id.settings_fragment_holder`: the FrameLayout inside the settings card that the app's
@@ -424,7 +416,9 @@ private fun BytecodePatchContext.wireModSettingsHub(
         val reference = (instruction as? ReferenceInstruction)?.reference ?: continue
         when (instruction.opcode) {
             Opcode.INVOKE_SUPER -> superTitleRef = reference as MethodReference
+
             Opcode.IGET_OBJECT -> holderField = reference as FieldReference
+
             Opcode.INVOKE_VIRTUAL -> {
                 val method = reference as MethodReference
                 if (method.parameterTypes.map { it.toString() } == listOf("Ljava/lang/String;")) {
@@ -928,7 +922,7 @@ private fun requireValue(value: String?, optionKey: String): String = value ?: t
  *
  * Everything about the design -- the API contract, the port of the phone patch's
  * skip controller, the two research questions this patch answers -- is documented in
- * docs/SPONSORBLOCK-PLAN.md. The short version:
+ * docs/SPONSORBLOCK-NOTES.md. The short version:
  *
  * - The extension (extensions/src/SponsorBlock*.java) fetches segments per video id
  *   and runs a ~500 ms tick on the main looper, reading the playhead through three
@@ -1113,6 +1107,7 @@ val sponsorBlockPatch = bytecodePatch(
                 }
 
                 Opcode.INVOKE_INTERFACE -> accessors += reference as MethodReference
+
                 else -> Unit
             }
         }
