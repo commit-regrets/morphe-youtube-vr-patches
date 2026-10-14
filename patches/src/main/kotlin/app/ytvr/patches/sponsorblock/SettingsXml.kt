@@ -452,30 +452,35 @@ private const val HIGHLIGHT_VALUES = "@array/ytvr_sb_highlight_values"
 private const val BEHAVIOUR_KEY_PREFIX = "ytvr_mod_sb_behaviour_"
 
 /**
- * The pickers' options, in the order the dialog shows them. `manual-skip` ("Show a Skip button")
- * is deliberately absent: this player has no skip button, so offering it would promise something
- * the port cannot do. The store still accepts the value (it maps to `seekbar-only`), so settings
- * exported from the phone patch keep their intent.
+ * The pickers' options, in the order the dialog shows them -- upstream's own order and wording,
+ * `manual-skip` ("Show a Skip button") included now that the port has a button to offer: it is the
+ * app's own skip-button card, shown while a segment the viewer has set to this behaviour is
+ * playing. The values are the phone patch's `CategoryBehaviour` keys verbatim, so a settings
+ * export/import round trip means the same thing on both.
  */
 private val BEHAVIOUR_ENTRY_LABELS = listOf(
     "Skip automatically",
     "Skip automatically once",
+    "Show a Skip button",
     "Show in seekbar only",
     "Disable",
 )
-private val BEHAVIOUR_ENTRY_VALUES = listOf("skip", "skip-once", "seekbar-only", "ignore")
+private val BEHAVIOUR_ENTRY_VALUES =
+    listOf("skip", "skip-once", "manual-skip", "seekbar-only", "ignore")
 
 /**
  * Highlight is "the part most people are looking for", not a stretch to skip past, and upstream
  * refuses `skip-once` for it (its API rejects the value). Same shape here, so the export/import
- * round trip matches.
+ * round trip matches -- and its "Show a Skip button" reads "Skip to Highlight" in the player, which
+ * is what a highlight is for.
  */
 private val HIGHLIGHT_ENTRY_LABELS = listOf(
     "Skip automatically",
+    "Show a Skip button",
     "Show in seekbar only",
     "Disable",
 )
-private val HIGHLIGHT_ENTRY_VALUES = listOf("skip", "seekbar-only", "ignore")
+private val HIGHLIGHT_ENTRY_VALUES = listOf("skip", "manual-skip", "seekbar-only", "ignore")
 
 /** The master switch, whose key doubles as the sub-screen's idempotence marker. */
 private const val SUBSCREEN_MASTER_KEY = "ytvr_mod_sb_enabled"
@@ -568,15 +573,15 @@ private const val STATS_KEY = "ytvr_mod_sb_stats"
 internal const val MIN_DURATION_KEY = "ytvr_mod_sb_min_duration"
 
 /**
- * The baked behaviour as a row default that is one of that row's own entries. `manual-skip` is
- * normalised the same way the extension normalises it, and a `skip-once` highlight (which upstream
- * refuses) falls back to `skip` rather than leaving the picker with a value it cannot display.
+ * The baked behaviour as a row default that is one of that row's own entries. Every behaviour the
+ * extension implements is now one of the entries, so the only coercion left is a `skip-once`
+ * highlight (which upstream refuses and this row does not offer) falling back to `skip`, rather
+ * than leaving the picker with a value it cannot display.
  */
 private fun rowDefault(configured: String?, highlight: Boolean): String {
     val allowed = if (highlight) HIGHLIGHT_ENTRY_VALUES else BEHAVIOUR_ENTRY_VALUES
-    val normalised = if (configured == "manual-skip") "seekbar-only" else configured
-    if (normalised != null && normalised in allowed) {
-        return normalised
+    if (configured != null && configured in allowed) {
+        return configured
     }
     return allowed.first()
 }

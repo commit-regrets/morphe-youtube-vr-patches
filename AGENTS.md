@@ -217,7 +217,7 @@ The dex reader is `tools/dexaudit/DexAudit.java`, compiled on demand against the
 ## SponsorBlock notes
 
 * Preference keys: `ytvr_mod_sb_behaviour_<category>` (picker strings: `skip`, `skip-once`,
-  `seekbar-only`, `manual-skip`→normalised to `seekbar-only`, `ignore`), `ytvr_mod_cat_<category>`
+  `manual-skip`, `seekbar-only`, `ignore` — all five implemented since 2026-10-14), `ytvr_mod_cat_<category>`
   (legacy switches, migrated at start-up), `ytvr_mod_sb_enabled`, `ytvr_mod_sb_markers`,
   `ytvr_mod_sb_skip_once` (legacy), `ytvr_mod_sb_min_duration`, `ytvr_mod_sb_stats_segments`/`_millis`.
   The hub also carries `ytvr_mod_video_quality`, `ytvr_mod_verbose_logging` and — added 2026-10-13 —
@@ -226,14 +226,23 @@ The dex reader is `tools/dexaudit/DexAudit.java`, compiled on demand against the
   (`ytvr_mod_drc_disabled` was built the same way and was then dropped with its patch; see the DRC row
   in INTERNALS.md for why nothing read it.)
 * The palette lives in `CategoryColours` and is shared by the seek-bar overlay and the settings rows,
-  so a marker and its row cannot disagree.
+  so a marker and its row cannot disagree. It also owns the button's wording (`skipLabel`).
 * `CategoryRows` owns the row UI: colouring, the in-row behaviour list, the summaries of the two
   display-only rows (`Stats`, `Minimum segment duration`), and the one switch row whose *write* it owns
   as well (`QUIC (HTTP/3)`) — a `SwitchPreference` persists its own XML default on first bind, so a
   seeded row must not declare one.
-* Upstream's default map is what ships (`sponsor=skip-once`; selfpromo/interaction/highlight/intro/
-  outro/music_offtopic = `seekbar-only`; preview/hook/filler = `ignore`), and `migrateOldDefaults()`
-  moves rows still holding this port's older defaults so the change is actually seen.
+* `manual-skip` is a real behaviour as of 2026-10-14: `SkipButtonCard` is the app's **own** skip-Ad
+  card (same layout, same `addVrContentView` registration, same `gnd` panel slot, built by two bridge
+  methods the patch adds to the activity and hooked off the app's skip-Ad-button constructor), hung
+  `0.75` player-controls-panel widths left of that anchor, up for the phone patch's
+  **3800 ms** window per segment. See `docs/SPONSORBLOCK-NOTES.md` Addendum 19.
+* Upstream's default map is what ships (`sponsor=skip-once`; selfpromo/interaction/intro/outro/
+  music_offtopic/poi_highlight = `manual-skip`; preview/hook/filler = `ignore`), and
+  `migrateOldDefaults()` moves rows still holding this port's older defaults — chained, because a row
+  can be two defaults behind (`skip` -> `seekbar-only` -> `manual-skip`), and **bounded**, because that
+  walk runs inside `Application.onCreate`: a future edit that made the move table cyclic would
+  otherwise hang the app's start-up with no crash and no log line. Both halves are asserted by
+  `build/probe/SbPickCheck.java`.
 
 ## Logging
 

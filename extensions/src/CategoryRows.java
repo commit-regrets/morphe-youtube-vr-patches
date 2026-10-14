@@ -13,8 +13,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -49,14 +51,22 @@ public final class CategoryRows {
 
     /** Used only if the resources cannot be read: the same lists the patch bakes in. */
     private static final String[] FALLBACK_LABELS = {
-        "Skip automatically", "Skip automatically once", "Show in seekbar only", "Disable",
+        "Skip automatically",
+        "Skip automatically once",
+        "Show a Skip button",
+        "Show in seekbar only",
+        "Disable",
     };
 
-    private static final String[] FALLBACK_VALUES = {"skip", "skip-once", "seekbar-only", "ignore"};
-    private static final String[] FALLBACK_HIGHLIGHT_LABELS = {
-        "Skip automatically", "Show in seekbar only", "Disable",
+    private static final String[] FALLBACK_VALUES = {
+        "skip", "skip-once", "manual-skip", "seekbar-only", "ignore",
     };
-    private static final String[] FALLBACK_HIGHLIGHT_VALUES = {"skip", "seekbar-only", "ignore"};
+    private static final String[] FALLBACK_HIGHLIGHT_LABELS = {
+        "Skip automatically", "Show a Skip button", "Show in seekbar only", "Disable",
+    };
+    private static final String[] FALLBACK_HIGHLIGHT_VALUES = {
+        "skip", "manual-skip", "seekbar-only", "ignore",
+    };
 
     /**
      * Where a row remembers the colour its own theme gave it, so a recycled row can be restored.
@@ -656,15 +666,35 @@ public final class CategoryRows {
             list.setBackground(background);
             list.setPadding(dp(context, 12), dp(context, 2), dp(context, 12), dp(context, 2));
 
+            // One column, but with tighter rows than the original 17sp/9dp: the fifth option was
+            // being cut off by the bottom of the card, and that is not merely "out of view" -- the
+            // card clips, and scrolling the settings list to it rebinds the row and closes the
+            // list.
+            // Seen in a headset capture on 2026-10-14 (`build/probe/shots/panel-left.png`): four
+            // options filled the visible height and "Disable" was cut off below them.
+            //
+            // Two columns were tried first, on the video-quality picker's precedent, and the
+            // capture
+            // caught what the log could not: the labels here are much wider than that picker's
+            // ("Skip automatically once" against "Highest available"), so in a half-width column
+            // the
+            // longest wrapped onto a second line and the grid came out ragged
+            // (`fix-08-crop.png`). The constraint here is vertical, not horizontal, so the rows got
+            // shorter instead: 15sp with 4dp of vertical padding is about a third off a row, which
+            // fits five where four used to fit, with every label still on one line.
+            final List<TextView> options = new ArrayList<TextView>();
             for (int index = 0; index < labels.length && index < values.length; index++) {
                 final String value = values[index];
                 final String optionLabel = labels[index];
                 boolean selected = value.equals(current);
                 TextView option = new TextView(context);
-                option.setText((selected ? "\u2713 " : "   ") + optionLabel);
+                // Two characters of marker either way: "\u2713 " is a glyph plus a space, so an
+                // unselected row indented by three spaces put its text one character to the left of
+                // the selected row's -- visible in the same capture and reported from the headset.
+                option.setText((selected ? "\u2713 " : "  ") + optionLabel);
                 option.setTextColor(selected ? colour : 0xFFEEEEEE);
-                option.setTextSize(17f);
-                option.setPadding(0, dp(context, 9), 0, dp(context, 9));
+                option.setTextSize(15f);
+                option.setPadding(0, dp(context, 4), 0, dp(context, 4));
                 option.setClickable(true);
                 option.setOnClickListener(
                         new View.OnClickListener() {
@@ -688,15 +718,37 @@ public final class CategoryRows {
                         new LinearLayout.LayoutParams(
                                 LinearLayout.LayoutParams.MATCH_PARENT,
                                 LinearLayout.LayoutParams.WRAP_CONTENT));
+                options.add(option);
             }
 
             host.addView(list, listParams(context, host, title, summary));
             // A row near the bottom of the panel would otherwise push the last options off the
-            // visible area, and scrolling to them would rebind the row and close the list.
+            // visible area, and scrolling to them would rebind the row and close the list. The
+            // list's own laid-out size is logged for the same reason: it is the one part of the
+            // picker a log cannot otherwise see, and it is what says whether the list still fits.
+            //
+            // A per-option `getLineCount()` was logged here first, to catch a label wrapping. It
+            // **reported 1 for every option on a two-column list whose longest label was visibly
+            // wrapped** in the capture taken at the same moment -- it appears to read the layout
+            // from
+            // before the column was re-measured to its final width. Removed rather than kept as
+            // reassurance: a check that reports success on the failing case is worse than none, and
+            // the height logged here is what the fit actually depends on.
             row.post(
                     new Runnable() {
                         @Override
                         public void run() {
+                            View shown = host.findViewWithTag(LIST_TAG);
+                            if (shown != null) {
+                                log(
+                                        "behaviour list geometry: "
+                                                + options.size()
+                                                + " option(s) in one column, list="
+                                                + shown.getWidth()
+                                                + "x"
+                                                + shown.getHeight()
+                                                + "px");
+                            }
                             row.requestRectangleOnScreen(
                                     new Rect(0, 0, row.getWidth(), row.getHeight()), false);
                         }

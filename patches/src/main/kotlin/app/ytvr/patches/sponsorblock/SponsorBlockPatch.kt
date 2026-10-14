@@ -21,6 +21,7 @@ import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
@@ -99,6 +100,64 @@ private val SEEKBAR_IDS = intArrayOf(
     ID_SEEKBAR_POSITION,
     ID_SEEKBAR_THUMB,
 )
+
+/**
+ * The panel-name literal of the app's own skip-Ad button: the value of the `gnd` enum constant the
+ * app sets on that card (`gnd.SKIP_BUTTON("skip-ad-button")`). Measured over the stock dex: the
+ * literal occurs exactly once, and the static field it is stored into is read from exactly one
+ * method — the skip-Ad-button constructor, which is also where the activity is available. Both
+ * facts are what this patch mines for the Skip button.
+ */
+private const val SKIP_BUTTON_SLOT_LITERAL = "skip-ad-button"
+
+/**
+ * The `R.layout.*` id space of 1.88.10 (the `R.xml` window is 0x7f1800xx, `R.id` is 0x7f0b, dimens
+ * are 0x7f07): the skip button's layout id is the only value from this window in the constructor
+ * that mines it, which is what makes "the int before the inflate call" an unambiguous anchor.
+ */
+private const val LAYOUT_RESOURCE_ID_FIRST = 0x7f0e0000
+private const val LAYOUT_RESOURCE_ID_LAST = 0x7f0effff
+private val LAYOUT_RESOURCE_ID_WINDOW = LAYOUT_RESOURCE_ID_FIRST..LAYOUT_RESOURCE_ID_LAST
+
+/** Every invoke opcode, for the scans that look for a *call* rather than for a name. */
+private val INVOKE_OPCODES = setOf(
+    Opcode.INVOKE_VIRTUAL,
+    Opcode.INVOKE_SUPER,
+    Opcode.INVOKE_DIRECT,
+    Opcode.INVOKE_STATIC,
+    Opcode.INVOKE_INTERFACE,
+    Opcode.INVOKE_VIRTUAL_RANGE,
+    Opcode.INVOKE_SUPER_RANGE,
+    Opcode.INVOKE_DIRECT_RANGE,
+    Opcode.INVOKE_STATIC_RANGE,
+    Opcode.INVOKE_INTERFACE_RANGE,
+)
+
+/** The smali spelling of an invoke opcode, for the bodies assembled below. */
+private fun Opcode.smaliName(): String = name.lowercase().replace("_range", "/range").replace('_', '-')
+
+/**
+ * The app's skip-Ad-button panel slot: `gnd`'s static initializer is the only holder of the
+ * `skip-ad-button` literal (measured: 1 class).
+ */
+private val skipSlotFingerprint = Fingerprint(
+    name = "<clinit>",
+    returnType = "V",
+    strings = listOf(SKIP_BUTTON_SLOT_LITERAL),
+)
+
+/**
+ * The static field [instruction] stores a value of [type] into, or null. The slot enum's own
+ * definition -- `sput-object` of the field whose type is the enum itself -- is the one this patch
+ * mines; testing it away from the scan keeps that condition readable.
+ */
+private fun Instruction.storesFieldOfType(type: String): FieldReference? {
+    if (opcode != Opcode.SPUT_OBJECT) {
+        return null
+    }
+    val reference = (this as? ReferenceInstruction)?.reference
+    return if (reference is FieldReference && reference.definingClass == type) reference else null
+}
 
 /** True when [this] references every seek-bar resource id (they are inlined ints). */
 private fun Method.referencesSeekbarIds(): Boolean {
@@ -964,39 +1023,31 @@ val sponsorBlockPatch = bytecodePatch(
         values = mapOf(
             "skip" to "Skip automatically (a backwards seek skips it again)",
             "skip-once" to "Skip automatically once (a backwards seek stays)",
+            "manual-skip" to "Show a Skip button in the player (nothing is skipped until it is pressed)",
             "seekbar-only" to "Show on the seekbar only (never skips)",
-            "manual-skip" to "Show a Skip button -- no button here: same as seekbar-only",
             "ignore" to "Leave alone",
         ),
         title = title,
     )
 
-    // Upstream's own default map: what a phone user gets before touching anything, and deliberately
-    // conservative -- only sponsor skips by itself, the five categories upstream leaves to a Skip
-    // button are seekbar-only here (this player has no button), and preview/hook/filler are left
-    // alone. The Patch settings pickers change any of them per category at runtime.
-    //
-    // `seekbar-only` is the exception, and it is reachable from here before it is reachable from
-    // the screen: a switch cannot express "draw it and never skip", so a category left at
-    // `seekbar-only` keeps that behaviour until the switch is touched (ON then means skip, OFF
-    // means ignore, as before). Add the screen's per-category picker and this stops being a
-    // build-time-only choice.
-    //
-    // Note for anyone aligning these with the phone patch: upstream's defaults are
-    // sponsor=skip-once, selfpromo/interaction/highlight/intro/outro/music_offtopic=manual-skip,
-    // preview/hook/filler=ignore. Here `manual-skip` normalises to `seekbar-only`, and the current
-    // defaults are deliberately unchanged from what the installed app already does -- switching
-    // them is a behaviour change for existing users, not a prerequisite for the feature.
+    // Upstream's own default map: what a phone user gets before touching anything. `sponsor` is the
+    // only category that skips by itself; the six upstream leaves to its Skip button
+    // (selfpromo/interaction/intro/outro/music_offtopic/poi_highlight) are `manual-skip` here too,
+    // now that this port has that button -- they were `seekbar-only` only while it did not, which
+    // made those six silently do nothing. `preview`/`hook`/`filler` are left alone, as upstream
+    // leaves them. The Patch settings pickers change any of them per category at runtime, and
+    // SponsorBlockSettings.migrateOldDefaults moves rows still holding the old defaults so the
+    // change is actually seen by an install that has already opened the screen.
     val sponsor by categoryBehaviourOption("sponsorCategory", "Sponsor", "skip-once")
-    val selfpromo by categoryBehaviourOption("selfpromoCategory", "Self-promotion", "seekbar-only")
-    val interaction by categoryBehaviourOption("interactionCategory", "Interaction reminder", "seekbar-only")
-    val intro by categoryBehaviourOption("introCategory", "Intermission/intro", "seekbar-only")
-    val outro by categoryBehaviourOption("outroCategory", "Outro/endcards", "seekbar-only")
+    val selfpromo by categoryBehaviourOption("selfpromoCategory", "Self-promotion", "manual-skip")
+    val interaction by categoryBehaviourOption("interactionCategory", "Interaction reminder", "manual-skip")
+    val intro by categoryBehaviourOption("introCategory", "Intermission/intro", "manual-skip")
+    val outro by categoryBehaviourOption("outroCategory", "Outro/endcards", "manual-skip")
     val preview by categoryBehaviourOption("previewCategory", "Preview/recap", "ignore")
     val hook by categoryBehaviourOption("hookCategory", "Hook (padding after intro)", "ignore")
     val filler by categoryBehaviourOption("fillerCategory", "Filler tangent", "ignore")
-    val musicOfftopic by categoryBehaviourOption("musicOfftopicCategory", "Music: non-music", "seekbar-only")
-    val poiHighlight by categoryBehaviourOption("poiHighlightCategory", "Highlight (jump to point)", "seekbar-only")
+    val musicOfftopic by categoryBehaviourOption("musicOfftopicCategory", "Music: non-music", "manual-skip")
+    val poiHighlight by categoryBehaviourOption("poiHighlightCategory", "Highlight (jump to point)", "manual-skip")
 
     // ---- the colour legend on the category rows.
     //
@@ -1375,6 +1426,233 @@ val sponsorBlockPatch = bytecodePatch(
             """
                 invoke-static/range {p1 .. p8}, Lapp/ytvr/extension/SponsorBlockOverlay;->onTimeline(JJJJ)V
             """,
+        )
+
+        // ------------------------------------------------------------------
+        // The Skip button (the `manual-skip` behaviour): the app's **own** skip-button
+        // card, built the way the app builds its skip-Ad button.
+        //
+        // The controls card is not an option: it is drawn only while the player controls
+        // are on screen (the app hides the whole panel when the controller ray leaves
+        // it), and a view on the window's decor is never composited at all. The app's
+        // skip-Ad button is a standalone `VrCardView` registered with the activity's VR
+        // view root -- drawn during playback and hit-tested by the ray -- so the Skip
+        // button is one of those.
+        //
+        // Everything is mined, nothing is named: the slot enum's field comes from the
+        // `skip-ad-button` literal, and the one method that reads that field is the
+        // skip-Ad-button constructor, whose body supplies the layout id, the activity's
+        // card factory, the slot setter and the app's own show/hide call. The bridges
+        // below carry *our* names, so the extension never names an obfuscated member.
+        // ------------------------------------------------------------------
+        val slotClinit = skipSlotFingerprint.method
+        val slotType = skipSlotFingerprint.classDef.type
+        var slotField: FieldReference? = null
+        var pastSlotLiteral = false
+        for (instruction in slotClinit.implementation?.instructions ?: emptyList()) {
+            val reference = (instruction as? ReferenceInstruction)?.reference
+            if (reference is StringReference && reference.string == SKIP_BUTTON_SLOT_LITERAL) {
+                pastSlotLiteral = true
+                continue
+            }
+            if (pastSlotLiteral) {
+                val stored = instruction.storesFieldOfType(slotType)
+                if (stored != null) {
+                    slotField = stored
+                    break
+                }
+            }
+        }
+        val slot = slotField ?: throw PatchException(
+            "SponsorBlock: no static field of $slotType is stored after " +
+                "\"$SKIP_BUTTON_SLOT_LITERAL\", so the Skip button cannot be given its panel slot",
+        )
+
+        // The one method that reads the slot: the skip-Ad-button constructor. Measured over the
+        // stock dex, the field is read from exactly one method.
+        var slotReaderOwner: ClassDef? = null
+        var slotReaderParams: List<String>? = null
+        classDefForEach { classDef ->
+            if (slotReaderOwner == null) {
+                for (method in classDef.methods) {
+                    val implementation = method.implementation ?: continue
+                    if (implementation.instructions.any { instruction ->
+                            instruction.opcode == Opcode.SGET_OBJECT &&
+                                (instruction as? ReferenceInstruction)?.reference == slot
+                        }
+                    ) {
+                        slotReaderOwner = classDef
+                        slotReaderParams = method.parameterTypes.map { it.toString() }
+                        break
+                    }
+                }
+            }
+        }
+        val readerOwner = slotReaderOwner ?: throw PatchException(
+            "SponsorBlock: nothing reads the $SKIP_BUTTON_SLOT_LITERAL slot, so there is no " +
+                "skip-Ad button to copy and no activity to hand the extension",
+        )
+        val readerParams = slotReaderParams ?: throw PatchException(
+            "SponsorBlock: the method reading the $SKIP_BUTTON_SLOT_LITERAL slot has no parameters",
+        )
+        val activityType = readerParams.firstOrNull() ?: throw PatchException(
+            "SponsorBlock: the skip-Ad-button constructor takes no activity",
+        )
+        check(activityType.startsWith("L") && activityType.endsWith(";")) {
+            "SponsorBlock: the skip-Ad-button constructor's first parameter is not a class " +
+                "($activityType): the skip card cannot be built"
+        }
+        val readerClass = mutableClassDefBy(readerOwner.type)
+        val skipCtor = readerClass.methods.singleOrNull { method ->
+            method.name == "<init>" &&
+                method.parameterTypes.map { it.toString() } == readerParams
+        } ?: throw PatchException(
+            "SponsorBlock: no constructor on ${readerOwner.type} matches $readerParams",
+        )
+
+        var layoutId: Int? = null
+        var cardFactory: MethodReference? = null
+        var cardFactoryOpcode: Opcode? = null
+        var slotSetter: MethodReference? = null
+        var slotSetterOpcode: Opcode? = null
+        var visibilitySetter: MethodReference? = null
+        var visibilitySetterOpcode: Opcode? = null
+        val ctorInstructions = skipCtor.implementation?.instructions?.toList() ?: throw PatchException(
+            "SponsorBlock: the skip-Ad-button constructor has no body",
+        )
+        for ((index, instruction) in ctorInstructions.withIndex()) {
+            val reference = (instruction as? ReferenceInstruction)?.reference
+            if (instruction is NarrowLiteralInstruction &&
+                instruction.narrowLiteral in LAYOUT_RESOURCE_ID_WINDOW &&
+                layoutId == null
+            ) {
+                // The layout id is the argument of the inflate call that follows it. Anything else
+                // between the two means the shape has changed, and that is worth failing on rather
+                // than guessing the id.
+                for (follow in index + 1 until ctorInstructions.size) {
+                    val later = ctorInstructions[follow]
+                    if (later.opcode !in INVOKE_OPCODES) {
+                        continue
+                    }
+                    val method = (later as? ReferenceInstruction)?.reference as? MethodReference
+                    if (method != null &&
+                        method.parameterTypes.map { it.toString() } == listOf("I") &&
+                        method.returnType.startsWith("L")
+                    ) {
+                        layoutId = instruction.narrowLiteral
+                        cardFactory = method
+                        cardFactoryOpcode = later.opcode
+                    }
+                    break
+                }
+            }
+            if (instruction.opcode in INVOKE_OPCODES && reference is MethodReference) {
+                val parameters = reference.parameterTypes.map { it.toString() }
+                if (slotSetter == null && parameters == listOf(slotType)) {
+                    slotSetter = reference
+                    slotSetterOpcode = instruction.opcode
+                }
+                if (visibilitySetter == null &&
+                    parameters == listOf("Z") &&
+                    reference.returnType == "V"
+                ) {
+                    visibilitySetter = reference
+                    visibilitySetterOpcode = instruction.opcode
+                }
+            }
+        }
+        val layout = layoutId ?: throw PatchException(
+            "SponsorBlock: no layout id in the ${readerOwner.type} constructor",
+        )
+        val factory = cardFactory ?: throw PatchException(
+            "SponsorBlock: the layout id in ${readerOwner.type} is not followed by an inflate call",
+        )
+        val factoryOpcode = cardFactoryOpcode!!
+        val setSlot = slotSetter ?: throw PatchException(
+            "SponsorBlock: ${readerOwner.type} never sets the $slotType slot on the card",
+        )
+        val setSlotOpcode = slotSetterOpcode!!
+        val setVisible = visibilitySetter ?: throw PatchException(
+            "SponsorBlock: ${readerOwner.type} never shows or hides the card",
+        )
+        val setVisibleOpcode = visibilitySetterOpcode!!
+        val cardType = factory.returnType
+        check(factory.definingClass == activityType) {
+            "SponsorBlock: the card factory $factory is not on the activity $activityType"
+        }
+
+        // The bridges the extension calls by name. `YtvrSbMakeSkipCard` does what the app's own
+        // constructor does for its card -- inflate it, register it with the VR view root, give it
+        // the panel slot -- and hands back the view; `YtvrSbSkipCardVisible` is the app's own
+        // show/hide call, which the extension cannot name either.
+        val activityClass = mutableClassDefBy(activityType)
+        val publicStatic = AccessFlags.PUBLIC.value or AccessFlags.STATIC.value
+        activityClass.methods.add(
+            MutableMethod(
+                ImmutableMethod(
+                    activityType,
+                    "YtvrSbMakeSkipCard",
+                    listOf(ImmutableMethodParameter(activityType, null, null)),
+                    "Landroid/view/View;",
+                    publicStatic,
+                    emptySet(),
+                    emptySet(),
+                    ImmutableMethodImplementation(
+                        3,
+                        listOf(ImmutableInstruction11x(Opcode.RETURN_OBJECT, 0)),
+                        emptyList(),
+                        emptyList(),
+                    ),
+                ),
+            ),
+        )
+        activityClass.methods.single { it.name == "YtvrSbMakeSkipCard" }.fillBody(
+            """
+            const v0, $layout
+            ${factoryOpcode.smaliName()} {p0, v0}, $factory
+            move-result-object v0
+            sget-object v1, $slot
+            ${setSlotOpcode.smaliName()} {v0, v1}, $setSlot
+            check-cast v0, Landroid/view/View;
+            return-object v0
+            """.trimIndent(),
+        )
+        activityClass.methods.add(
+            MutableMethod(
+                ImmutableMethod(
+                    activityType,
+                    "YtvrSbSkipCardVisible",
+                    listOf(
+                        ImmutableMethodParameter("Landroid/view/View;", null, null),
+                        ImmutableMethodParameter("Z", null, null),
+                    ),
+                    "V",
+                    publicStatic,
+                    emptySet(),
+                    emptySet(),
+                    ImmutableMethodImplementation(
+                        2,
+                        listOf(ImmutableInstruction10x(Opcode.RETURN_VOID)),
+                        emptyList(),
+                        emptyList(),
+                    ),
+                ),
+            ),
+        )
+        activityClass.methods.single { it.name == "YtvrSbSkipCardVisible" }.fillBody(
+            """
+            check-cast p0, $cardType
+            ${setVisibleOpcode.smaliName()} {p0, p1}, $setVisible
+            return-void
+            """.trimIndent(),
+        )
+
+        // The handover: the app's skip-Ad-button constructor receives the activity, and it runs
+        // once per player surface. `p1` because the constructor is an instance method.
+        skipCtor.addInstructions(
+            0,
+            "invoke-static/range {p1 .. p1}, " +
+                "Lapp/ytvr/extension/SkipButtonCard;->attachActivity(Ljava/lang/Object;)V",
         )
 
         // ------------------------------------------------------------------

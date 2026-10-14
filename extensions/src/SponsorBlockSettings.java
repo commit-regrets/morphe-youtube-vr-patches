@@ -15,16 +15,17 @@ import java.util.Map;
  * so a change in the panel takes effect on the next video without a rebuild. Anything unparsable
  * falls back to the documented defaults with a log line, never an exception into the app.
  *
- * <p>Behaviours are the phone patch's five, with one mapping: {@code skip}, {@code skip-once},
- * {@code seekbar-only} and {@code ignore} are implemented as themselves, and {@code manual-skip}
- * ("Show a Skip button") is stored as {@code seekbar-only} because this client has no skip button
- * to show. That is not a loss of intent -- both mean "do not seek for me, just show me where it is"
- * -- it is the closest this player can get to the phone behaviour, and it is what the four of
- * upstream's ten category defaults that use {@code manual-skip} become here.
+ * <p>Behaviours are the phone patch's five, all of them implemented here: {@code skip}, {@code
+ * skip-once}, {@code manual-skip} ("Show a Skip button"), {@code seekbar-only} and {@code ignore}.
+ * {@code manual-skip} used to be stored as {@code seekbar-only} because this client had no skip
+ * button to offer; the button now exists ({@link SkipButtonCard}, the app's own skip-button card),
+ * so every behaviour upstream defines means the same thing here as it does on the phone.
  *
- * <p>The distinction that matters is therefore {@link #autoSkips}: only {@code skip} and {@code
- * skip-once} move the playhead. Any gate that asks "is this not ignore?" would wrongly auto-skip a
- * {@code seekbar-only} segment, so the gates ask this instead.
+ * <p>The distinction that matters is therefore {@link #autoSkips} and {@link #manualSkips}: only
+ * {@code skip} and {@code skip-once} move the playhead *by themselves*, and only {@code
+ * manual-skip} offers the button. Any gate that asks "is this not ignore?" would wrongly auto-skip
+ * a {@code seekbar-only} segment, so the gates ask these instead -- and the tick's own gate has to
+ * accept {@code manual-skip} too, or the button would never be offered.
  */
 public final class SponsorBlockSettings {
 
@@ -221,13 +222,16 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * The baked defaults moved from this port's first set (five categories auto-skipping) to
-     * upstream's map, where only sponsor skips by itself.
+     * The baked defaults have moved twice: this port's first set (five categories auto-skipping),
+     * then upstream's map, and now upstream's map *with a working skip button* -- the six
+     * categories upstream leaves to that button (`selfpromo`, `interaction`, `intro`, `outro`,
+     * `music_offtopic`, `poi_highlight`) were `seekbar-only` here only because there was no button
+     * to offer, and are `manual-skip` now that there is.
      *
      * <p>A row the viewer has already chosen keeps its value -- but androidx *persisted* the old
      * default into the pref file the first time the screen was opened, so every untouched row is
      * indistinguishable from a deliberate choice. Without this step the new defaults would never be
-     * seen by anyone who had opened the screen. A stored value that still equals the old default is
+     * seen by anyone who had opened the screen. A stored value that still equals an old default is
      * therefore moved to the new one, and every move is logged so it can be undone in the picker.
      */
     private static final String[][] DEFAULT_MOVES = {
@@ -238,7 +242,47 @@ public final class SponsorBlockSettings {
         {"outro", "skip", "seekbar-only"},
         {"music_offtopic", "ignore", "seekbar-only"},
         {"poi_highlight", "ignore", "seekbar-only"},
+        {"selfpromo", "seekbar-only", "manual-skip"},
+        {"interaction", "seekbar-only", "manual-skip"},
+        {"intro", "seekbar-only", "manual-skip"},
+        {"outro", "seekbar-only", "manual-skip"},
+        {"music_offtopic", "seekbar-only", "manual-skip"},
+        {"poi_highlight", "seekbar-only", "manual-skip"},
     };
+
+    /**
+     * The most hops {@link #migrateDefault} will follow before giving up. Two is the longest
+     * legitimate chain in the table above; eight leaves room for another default to be retired
+     * without ever letting a cycle hang the app's start-up.
+     */
+    private static final int MAX_DEFAULT_MOVES = 8;
+
+    /**
+     * Where a stored value ends up after every applicable move. Chained rather than tested once,
+     * because a row can be two defaults behind (`skip` -> `seekbar-only` -> `manual-skip`) and the
+     * editor's writes are not visible to the store this reads.
+     */
+    static String migrateDefault(String category, String stored) {
+        String value = stored;
+        // Bounded, and not for style: this runs inside Application.onCreate, so a future edit that
+        // made DEFAULT_MOVES cyclic (`a -> b` and `b -> a`) would spin here forever and the app
+        // would never start -- a failure with no log line and no crash to read. The longest
+        // legitimate chain today is two hops, and each hop must actually change the value.
+        for (int hop = 0; hop < MAX_DEFAULT_MOVES; hop++) {
+            String next = null;
+            for (String[] move : DEFAULT_MOVES) {
+                if (move[0].equals(category) && move[1].equals(value)) {
+                    next = move[2];
+                    break;
+                }
+            }
+            if (next == null || next.equals(value)) {
+                break;
+            }
+            value = next;
+        }
+        return value;
+    }
 
     private static void migrateOldDefaults() {
         try {
@@ -248,22 +292,26 @@ public final class SponsorBlockSettings {
             }
             SharedPreferences.Editor editor = null;
             StringBuilder moved = new StringBuilder();
-            for (String[] move : DEFAULT_MOVES) {
-                String key = KEY_CATEGORY + move[0];
+            for (String[] category : CATEGORY_KEYS) {
+                String key = KEY_CATEGORY + category[0];
                 String stored = modString(key);
-                if (stored == null || !stored.equals(move[1])) {
+                if (stored == null) {
+                    continue;
+                }
+                String target = migrateDefault(category[0], stored);
+                if (target.equals(stored)) {
                     continue;
                 }
                 if (editor == null) {
                     editor = mod.edit();
                 }
-                editor.putString(key, move[2]);
+                editor.putString(key, target);
                 moved.append(' ')
-                        .append(move[0])
+                        .append(category[0])
                         .append(' ')
-                        .append(move[1])
+                        .append(stored)
                         .append(" -> ")
-                        .append(move[2]);
+                        .append(target);
             }
             if (editor != null) {
                 editor.apply();
@@ -520,11 +568,16 @@ public final class SponsorBlockSettings {
         return mod == null ? markersEnabled : mod;
     }
 
-    /** Whether any category would actually move the playhead. */
-    public static boolean anySkipping() {
+    /**
+     * Whether any category would do anything at all: move the playhead itself ({@code skip}, {@code
+     * skip-once}) or offer the in-player skip button ({@code manual-skip}). This is the tick's
+     * gate, so it has to answer yes for a build whose categories are all {@code manual-skip} --
+     * otherwise the controller would return before it ever offered the button.
+     */
+    public static boolean anyHandled() {
         synchronized (BEHAVIOURS) {
             for (String behaviour : BEHAVIOURS.values()) {
-                if (autoSkips(behaviour)) {
+                if (autoSkips(behaviour) || manualSkips(behaviour)) {
                     return true;
                 }
             }
@@ -533,12 +586,22 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * Whether this behaviour seeks past the segment. The one predicate every skip gate must use:
-     * `seekbar-only` is a live segment that is drawn and never skipped, so "not ignore" is the
-     * wrong test.
+     * Whether this behaviour seeks past the segment by itself. The one predicate every *automatic*
+     * skip gate must use: `seekbar-only` is a live segment that is drawn and never skipped, so "not
+     * ignore" is the wrong test.
      */
     public static boolean autoSkips(String behaviour) {
         return "skip".equals(behaviour) || "skip-once".equals(behaviour);
+    }
+
+    /**
+     * Whether this behaviour offers the skip button without moving the playhead on its own -- the
+     * phone patch's "Show a Skip button". The controller offers the button while the playhead is
+     * inside such a segment (or, for a highlight, while the point is still ahead) and seeks only
+     * when it is clicked.
+     */
+    public static boolean manualSkips(String behaviour) {
+        return "manual-skip".equals(behaviour);
     }
 
     /** Whether this behaviour draws a seek-bar marker. Everything except `ignore` does. */
@@ -564,13 +627,12 @@ public final class SponsorBlockSettings {
     }
 
     /**
-     * The behaviour this client can actually run. Only `manual-skip` changes meaning: it asks for a
-     * Skip button, this player has none, so it becomes the behaviour that shows the segment without
-     * moving the playhead -- which is what a viewer who would have pressed that button wants
-     * anyway.
+     * The behaviour this client runs. Every value upstream defines is implemented here now,
+     * `manual-skip` ("Show a Skip button") included, so this is a pass-through -- it stays as the
+     * single place a divergence would be recorded, and as the validation the write path shares.
      */
     private static String normaliseBehaviour(String value) {
-        return "manual-skip".equals(value) ? "seekbar-only" : value;
+        return value;
     }
 
     /** Through the one gate: a build whose "Verbose logging" row is untouched prints nothing. */
