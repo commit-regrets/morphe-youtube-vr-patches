@@ -1,9 +1,10 @@
 # SponsorBlock for YouTube VR — anchors, API contract, and build notes
 
-*Status: **implemented and device-verified** (2026-10-10). The patch (`SponsorBlock`, on by
-default since 2026-10-11) and the extension (`SponsorBlock*.java`) are written, the bundle builds,
-the patched dex has been verified hook-by-hook, and the installed build was play-tested on the
-headset — the addenda below are that record, including the four bugs it exposed, all fixed.*
+*Status: **implemented and device-verified** (2026-10-10; the `manual-skip` behaviour — "Show a Skip
+button" — added and verified 2026-10-14, Addendum 19). The patch (`SponsorBlock`, on by default since
+2026-10-11) and the extension (`SponsorBlock*.java`, `SkipButtonCard.java`) are written, the bundle
+builds, the patched dex has been verified hook-by-hook, and the installed build was play-tested on the
+headset — the addenda below are that record, including the bugs it exposed, all fixed.*
 
 *What each section is for now: **§1** the public API contract, **§2** how the phone patch set solves
 the same problem, **§3** the measured player anchors this patch's fingerprints exist for (cited by
@@ -998,6 +999,115 @@ to the card's top-left corner (the standard back position, `deprecated_settings_
 back-button container: `alignParentStart` + margins instead of `centerHorizontal`), so the two
 controls read as different things -- the card's back at top-left, the OS's panel control above.
 
+## Addendum 19: "Show a Skip button" — the `manual-skip` behaviour (2026-10-14)
+
+The phone patch's fifth behaviour is implemented, so every value upstream defines now means the same
+thing here. Requested after a play-test, with the phone patch's own picker as the reference: *"our
+implementation is missing 'show a skip button', Morphe for YouTube mobile has that"*.
+
+**What the phone patch does** (read from `mpp-sh`/`mpp-yt`, the same sources §2 cites):
+`CategoryBehaviour.MANUAL_SKIP("manual-skip")` is one of five; a segment with it is *not* seeked past,
+it is **offered**. `SegmentPlaybackController.setSegmentCurrentlyPlaying` shows it while the playhead is
+inside, `SkipSponsorButton` is an overlay whose label is the category's own text, and pressing it calls
+`onSkipSegmentClicked` → `skipSegment(segment, userManuallySkipped = true)`, which seeks to the segment's
+**end**. Two details came from the same read rather than from guessing:
+
+* **The window is 3800 ms.** `SB_AUTO_HIDE_SKIP_BUTTON` is on by default and its duration is
+  `FOUR_SECONDS.adjustedDuration`, and that enum subtracts 200 ms (`4 * 1000 - 200`). After the window
+  the segment is added to `hiddenSkipSegmentsForCurrentVideoTime` and is not offered again until the
+  playhead leaves it. The headset report that prompted this was exact: on the first build the button sat
+  over a 22-second segment for the whole 22 seconds.
+* **A highlight is a point, and upstream has a second button for it.** `poi_highlight` is offered from
+  the moment the segments arrive until the highlight is reached, capped by the same auto-hide duration,
+  and its label is "Skip *to* Highlight" because the jump is to the part most viewers are looking for.
+
+**Where the button lives, and why not in the player-controls card.** The app composites a VR surface
+per `VrCardView`, and the player-controls card is *hidden whenever the controller ray leaves it* — the
+timeline callback that drives the seek-bar markers only runs while the controls are on screen, which is
+the same fact from the other side. The app's own **skip-Ad button** is not in that card: `gtu` builds it
+as a standalone card with `gah.q(R.layout.vr_skip_ad_button)` → `T.addVrContentView(card)`, gives it the
+`gnd.SKIP_BUTTON` panel slot, and shows it with `gbd.o(boolean)` — which is exactly a floating,
+always-drawn, ray-hit-tested surface. The Skip button is the same card, built the same way.
+
+How the extension gets there without naming a single obfuscated member:
+
+| piece | where it comes from |
+|---|---|
+| the `gnd.SKIP_BUTTON` field | the only holder of the `skip-ad-button` literal, mined out of the enum's `<clinit>` (`sput-object` after the literal) |
+| the activity, the layout id, the card factory, the slot setter, the show/hide call | the one method that *reads* that field — the app's skip-Ad-button constructor (`Lgtu;-><init>`), mined at patch time |
+| the calls themselves | two bridges the patch adds to the activity: `YtvrSbMakeSkipCard(activity)` (inflate → `addVrContentView` → slot → return the view) and `YtvrSbSkipCardVisible(view, z)` (`gbd.o`). Both names are ours, so R8 cannot break them |
+| the handover | `SkipButtonCard.attachActivity(p1)` injected at instruction 0 of that same constructor |
+
+Verified in the built dex before install: `gah.YtvrSbMakeSkipCard` reads
+`gahVar.q(2131624785)` (= `0x7f0e0351` = `R.layout.vr_skip_ad_button`) → `n(gnd.SKIP_BUTTON)` →
+`return` the view, `gah.YtvrSbSkipCardVisible` is `((gbd) view).o(z)`, and `gtu.<init>` starts with
+`SkipButtonCard.attachActivity(gahVar)`.
+
+**Placement.** The card is anchored at the app's own skip-Ad entity (`assets/entities/androidviews/
+skip-ad-button.bin` — the position is a bundled asset keyed by the `gnd` name, not remote config, and
+two cards may share one slot: nothing in the app registers cards by `gnd`). The phone's button sits at
+the **bottom left** of the video, so the card is translated left, in units of the app's own
+`player_controls_panel_width` (568dp): 0.5 of a panel was reported "can we move more to left?", 1.0 was
+"a bit too far", and **0.75** is what shipped. Measured: `card=315x72px panel=852px offsetX=-481.5
+leftEdge=-639.0px density=1.5` — i.e. a 210x48dp button, which is the app's own 48dp Skip Ad button
+(`@dimen/floating_action_button_height`, 20dp text), the same height the phone patch's own button
+mirrors (`ad_skip_ad_button_min_height`).
+
+**A real bug this found: highlight segments were being thrown away.** `poi_highlight` is answered by
+the API as `segment: [t, t]` — a **zero-length** range. `SponsorBlockClient.addSegment` required
+`end > start`, so every highlight was dropped before the controller ever saw it, and the Highlight
+category had been silently inert since the first build. Measured against the live API for
+`kJQP7kiw5Fk`, whose three segments for this client's category list are two `music_offtopic` ranges and
+one `[21.808, 21.808]` highlight: the device log said `fetched 2 segment(s)`, now `3`. Zero-length
+segments are therefore accepted **for `poi_highlight` only** — for anything else a zero-length segment
+could never contain the playhead, so it could never skip.
+
+**What is deliberately one button, not two.** The phone patch has a separate button for a
+`manual-skip` range and for a highlight, and can show both at once. This port has one card, so the
+range wins when both apply: the segment the playhead is *inside* is the one the viewer can act on now.
+
+**Device verdict — measured end to end (2026-10-14), and confirmed from the headset:**
+
+```
+patch settings (youtube.xml): the screen's switches are not there yet, 0 switch(es) on;
+  effective: sponsor=skip-once selfpromo=manual-skip interaction=manual-skip poi_highlight=manual-skip
+             intro=manual-skip outro=manual-skip preview=ignore hook=ignore filler=ignore music_offtopic=manual-skip
+skip button card ready: ...VrCardView children=[HapticsFrameLayout id=0x7f0b0abd visible=true,
+                                                LinearLayout id=0x7f0b0ac1 visible=false] label='Skip ad'
+segments ready: 3 (0 auto-skip, 3 skip-button, 3 marked)
+skip button offered: music_offtopic 0.0s->75.694s
+skip button shown: 'Skip Non-music' for music_offtopic 0.0s->75.694s
+skip button placed: card=315x72px panel=852px offsetX=-481.5 leftEdge=-639.0px density=1.5
+skip button offer cleared (the viewer pressed the button)
+skip button hidden
+skip button pressed: music_offtopic 0.0s->75.694s
+skipping music_offtopic 0.0s->75.694s (position 2360 ms)
+seek confirmed at 75694 ms (target 75694)
+```
+
+plus `skip button window over (3800 ms)` → `offer cleared (the offer's 3800 ms window ran out)` on the
+run where the button was left alone, and `offer cleared (playback stopped)` when the headset slept.
+The crash buffer is empty across every run. The card is the app's own layout, so the label, the pill
+background and the 48dp height are the app's own styling — only the text is ours
+(`CategoryColours.skipLabel`: "Skip Non-music", "Skip Sponsor", "Skip to Highlight", …).
+
+**And the highlight offer, on a video whose highlight is the only thing ahead** (`ru0K8uYEZWw`,
+`poi_highlight [8, 8]`, nothing covering the first eight seconds) — the same run also shows that the
+*left edge* is what is pinned, since the wider label grows the card rightwards from it:
+
+```
+skip button offered: poi_highlight 8.0s->8.0s
+skip button shown: 'Skip to Highlight' for poi_highlight 8.0s->8.0s
+skip button placed: card=325x72px panel=852px offsetX=-476.5 leftEdge=-639.0px density=1.5
+skip button window over (3800 ms): poi_highlight 8.0s->8.0s
+```
+
+**Defaults moved with it.** The six categories upstream leaves to its Skip button were `seekbar-only`
+here only because there was no button to offer; they are `manual-skip` now, which is upstream's map
+again. `migrateOldDefaults` moves rows still holding an old default — **chained**, because a row can be
+two defaults behind (`skip` → `seekbar-only` → `manual-skip`) and the editor's writes are not visible
+to the store it reads.
+
 ## Observed behaviour (measured on the headset, against a real segment)
 
 What the rules above mean to whoever is watching the picture. Each line was measured on a real
@@ -1013,6 +1123,7 @@ playback, and each is something a user is likely to notice or to file as a bug:
   segment you were *seeked into* stays un-skipped while the playhead is inside it;
 - no skip is attempted while the app's own ad UI is counting down;
 - segments are fetched once per video; `404` -- "no segments here" -- is the normal quiet answer;
-- a category set to `ignore` does **nothing at all**, silently. On the phone those categories show a
-  skip button and VR has no button, so a video whose only segments are `filler` or `music_offtopic`
-  looks like SponsorBlock is broken until that category is switched on in Patch settings.
+- a category set to `ignore` does **nothing at all**, silently — and a category set to `manual-skip`
+  offers its button for 3.8 s when the playhead enters one of its segments; a video whose only segments
+  are `preview`/`hook`/`filler` still looks like SponsorBlock is broken until that category is switched
+  on in Patch settings (see Addendum 19: those three are `ignore` by upstream's own default map).
