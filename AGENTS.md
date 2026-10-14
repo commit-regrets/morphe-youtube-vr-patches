@@ -239,8 +239,10 @@ The dex reader is `tools/dexaudit/DexAudit.java`, compiled on demand against the
 * Upstream's default map is what ships (`sponsor=skip-once`; selfpromo/interaction/intro/outro/
   music_offtopic/poi_highlight = `manual-skip`; preview/hook/filler = `ignore`), and
   `migrateOldDefaults()` moves rows still holding this port's older defaults — chained, because a row
-  can be two defaults behind (`skip` -> `seekbar-only` -> `manual-skip`) — so the change is actually
-  seen by an install that has already opened the screen.
+  can be two defaults behind (`skip` -> `seekbar-only` -> `manual-skip`), and **bounded**, because that
+  walk runs inside `Application.onCreate`: a future edit that made the move table cyclic would
+  otherwise hang the app's start-up with no crash and no log line. Both halves are asserted by
+  `build/probe/SbPickCheck.java`.
 
 ## Logging
 

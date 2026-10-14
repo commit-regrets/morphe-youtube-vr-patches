@@ -387,9 +387,12 @@ Still deliberately different from the phone patch, and worth knowing before repo
   categories are `manual-skip`, i.e. they show a *button*; VR has no button, so they are silent
   no-ops. A video whose only segments are `filler` or `music_offtopic` therefore does nothing, and
   nothing in the UI says so. Changing a default means editing the option defaults in
-  `SponsorBlockPatch.kt`.
+  `SponsorBlockPatch.kt`. *(2026-10-14: both halves of this are superseded. VR has a button now, so
+  those categories are `manual-skip` and the shipped defaults are upstream's map again — Addendum 19.
+  The two bullets below that say "no visible feedback" are superseded by the same addendum, and the
+  seek-bar markers in Addendum 4.)*
 - **No visible feedback**: there is no toast, button or seekbar marker, so logcat is the only way to
-  tell "no segment here" from "the hook never ran".
+  tell "no segment here" from "the hook never ran". *(Superseded 2026-10-14 — see the note above.)*
 - **The video id comes from the player response**, not from the app's own video-id setter (which is
   what the phone patch hooks). Content and ad responses both pass through it, so an ad response
   arriving after the content response can leave the ad's id pending and fetch the wrong video's
@@ -1163,7 +1166,9 @@ skip button window over (3800 ms): poi_highlight 8.0s->8.0s
 here only because there was no button to offer; they are `manual-skip` now, which is upstream's map
 again. `migrateOldDefaults` moves rows still holding an old default — **chained**, because a row can be
 two defaults behind (`skip` → `seekbar-only` → `manual-skip`) and the editor's writes are not visible
-to the store it reads.
+to the store it reads — and **bounded** (`MAX_DEFAULT_MOVES`), because that walk happens inside
+`Application.onCreate`: a future edit that made the move table cyclic would otherwise hang the app's
+start-up silently, with no crash and no log line. Both halves are asserted by `build/probe/SbPickCheck.java`.
 
 ## Observed behaviour (measured on the headset, against a real segment)
 
