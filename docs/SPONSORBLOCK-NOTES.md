@@ -1066,6 +1066,41 @@ could never contain the playhead, so it could never skip.
 `manual-skip` range and for a highlight, and can show both at once. This port has one card, so the
 range wins when both apply: the segment the playhead is *inside* is the one the viewer can act on now.
 
+**Overlapping segments: the innermost is offered first.** Nesting is everywhere in the real database
+— measured against the live API for this client's category list, `e-ORhEE9VVg` has
+`music_offtopic [233.808, 272.441]` ⊃ `selfpromo [235.18, 260.653]`, `7wtfhZwyrcc` has an `intro`
+overlapping a `music_offtopic`, `JGwWNGJdvx8`/`09R8_2nJtjg`/`lp-EO5I60KA` each have a `music_offtopic`
+wrapping an `outro` — so "which one does the button offer" is a real question with a real answer
+needed. The first implementation answered it wrong: the list is sorted by start, and taking the first
+match is the *outermost* segment. The phone patch's loop replaces its candidate whenever the new
+segment is contained in the previous one, i.e. it descends to the **innermost**. With an `intro`
+wrapping a `sponsor` that is the difference between offering a 30-second jump and a 10-second one, so
+the rule was matched (asked for from the headset, 2026-10-14).
+
+Measured on `e-ORhEE9VVg` deep-linked to 4:15 (`&t=255s`), which puts the playhead inside all three
+of the overlapping segments above:
+
+```
+skip button offered: selfpromo 235.18s->260.653s
+skip button shown: 'Skip Self-promotion' for selfpromo 235.18s->260.653s
+skip button offered: outro 259.536s->272.441s
+```
+
+The first line is the innermost (`selfpromo`), where the old rule said "Skip Non-music" — the
+outermost. The second is the same rule with the phone patch's 800 ms "ends very soon" window on top of
+it: once `selfpromo` is within 800 ms of its end it stops being a candidate, so the descent lands on
+`outro`, which is contained in the outer `music_offtopic`. The outermost segment is therefore never
+offered while something nested inside it is available, which is the point of the rule. Two segments
+that merely overlap, neither containing the other, keep the earliest-starting one, because nothing
+replaces the first candidate — and that was this port's rule for *every* case before this change.
+
+**One rough edge, recorded rather than fixed** (found by reading the code while answering the
+question, not measured): the offer is published *before* the auto-skip loop runs in the same tick, so
+where a `manual-skip` segment overlaps an **auto-skip** one the button can be raised for a moment and
+then have the playhead yanked past it. It is cosmetic — the skip itself is unaffected, because an
+auto-skip segment inside a manual-skip one still fires the moment the playhead enters it — and it is
+left alone until someone sees it in the headset.
+
 **Device verdict — measured end to end (2026-10-14), and confirmed from the headset:**
 
 ```
