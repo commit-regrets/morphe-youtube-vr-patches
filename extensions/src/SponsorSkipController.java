@@ -502,18 +502,36 @@ public final class SponsorSkipController {
                 return;
             }
         }
-        // Before the "did the playhead move" guard: a fetch that lands mid-interval runs one
-        // extra check whose position has not changed, and the offer must appear from it.
-        publishSkipOffer(current, position);
-        if (!playheadAdvanced || current == null || current.isEmpty()) {
-            return;
-        }
-        for (SponsorSegment segment : current) {
-            if (shouldSkip(segment, position) || shouldSkipAhead(segment, position)) {
-                requestSkip(segment, position);
-                return;
+        // One decision per tick, and the automatic skip is made first. Both halves of this method
+        // used to run: the offer was published and the seek was requested in the same tick, so a
+        // `manual-skip` segment that overlaps an auto-skip one raised the button and was then
+        // seeked
+        // past -- leaving a button on screen for a segment that was no longer playing until the
+        // next
+        // tick took it away again. That is up to a full tick (~500 ms) and reads as a glitch, so
+        // the
+        // tick that skips publishes no offer at all; the next one offers whatever is genuinely
+        // playing after the seek lands.
+        //
+        // The `playheadAdvanced` test is the old guard around this loop, kept here so the skip
+        // cadence is unchanged by the reordering: while the playhead is stalled or seeking, the
+        // decision is made only for the offer.
+        SponsorSegment autoSkip = null;
+        if (playheadAdvanced && current != null) {
+            for (SponsorSegment segment : current) {
+                if (shouldSkip(segment, position) || shouldSkipAhead(segment, position)) {
+                    autoSkip = segment;
+                    break;
+                }
             }
         }
+        if (autoSkip != null) {
+            requestSkip(autoSkip, position);
+            return;
+        }
+        // The offer runs on every tick, including one whose playhead has not moved: a fetch that
+        // lands mid-interval runs one extra check, and the button must appear from it.
+        publishSkipOffer(current, position);
     }
 
     /**
