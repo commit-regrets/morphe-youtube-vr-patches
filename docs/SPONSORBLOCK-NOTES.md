@@ -1162,6 +1162,32 @@ skip button placed: card=325x72px panel=852px offsetX=-476.5 leftEdge=-639.0px d
 skip button window over (3800 ms): poi_highlight 8.0s->8.0s
 ```
 
+**The picker outgrew the card, and the first fix taught the check a lesson.** Adding `manual-skip` made
+the in-row behaviour list five options where it had been four, and the fifth was cut off by the bottom
+of the settings card. That is worse than "out of view": the card clips, and scrolling the settings list
+to reach it rebinds the row and closes the list, so "Disable" could not be selected at all. Reported
+from the headset and confirmed in a capture (`build/probe/shots/panel-left.png`): four options filled
+the visible height and the fifth sat below the edge.
+
+The video-quality picker's two columns were the obvious answer — that picker uses them for exactly this
+reason — and they were **wrong here**, which the capture caught and the log did not: the labels in this
+list are much wider ("Skip automatically once" against "Highest available"), so in a half-width column
+the longest wrapped onto a second line and the grid came out ragged (`fix-08-crop.png`). The constraint
+is vertical, not horizontal.
+
+What shipped is one column with **tighter rows**: 15sp with 4dp of vertical padding, about a third off a
+row, which fits five where four used to fit with every label still on one line. The marker is two
+characters wide either way (`"✓ "` against `"  "`), because the old three-space indent put an unselected
+row's text one character to the left of the selected row's — also visible in a capture.
+
+The lesson worth keeping: the two-column build logged each option's `getLineCount()` so that a wrap
+would be visible without a headset, and **it reported `1` for every option on a list whose longest label
+was visibly wrapped in the capture taken at the same moment.** It appears to read the layout from before
+the column was re-measured to its final width. That check is gone rather than kept as reassurance —
+the same conclusion the audit's four never-firing checks were paid for — and what remains logged is the
+list's own laid-out height, which is what the fit actually depends on. **When a check and a capture
+disagree about something visible, the capture is right.**
+
 **Defaults moved with it.** The six categories upstream leaves to its Skip button were `seekbar-only`
 here only because there was no button to offer; they are `manual-skip` now, which is upstream's map
 again. `migrateOldDefaults` moves rows still holding an old default — **chained**, because a row can be
