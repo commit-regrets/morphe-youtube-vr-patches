@@ -551,6 +551,18 @@ public final class SponsorSkipController {
                 offerSkipSegment(null, "the offer's " + SKIP_OFFER_MS + " ms window ran out");
                 showing = null;
             }
+            // Which overlapping segment, if any, is offered — the phone patch's own choice, read
+            // out
+            // of its loop: a segment that is *contained* in the current candidate replaces it, so
+            // the **innermost** nested segment is offered first. With an `intro` wrapping a
+            // `sponsor`, that is "Skip Sponsor" (a 10 s commitment) before "Skip Intro" (30 s) —
+            // the phone's order, and the smaller thing to ask a viewer for. Two segments that
+            // merely
+            // overlap, neither containing the other, keep the earliest-starting one, because
+            // nothing
+            // replaces the first candidate; that was this port's rule for *every* case before the
+            // nesting rule was matched (asked for from the headset, 2026-10-14).
+            SponsorSegment best = null;
             for (SponsorSegment segment : current) {
                 if (hiddenSegments.contains(segment)
                         || !SponsorBlockSettings.manualSkips(
@@ -563,7 +575,12 @@ public final class SponsorSkipController {
                 if (segment.endMs - position <= ENDS_SOON_MS) {
                     continue;
                 }
-                offerSkipSegment(segment);
+                if (best == null || containsSegment(best, segment)) {
+                    best = segment;
+                }
+            }
+            if (best != null) {
+                offerSkipSegment(best);
                 return;
             }
             SponsorSegment highlight = null;
@@ -588,6 +605,14 @@ public final class SponsorSkipController {
         } catch (Throwable t) {
             log("skip offer failed: " + t);
         }
+    }
+
+    /**
+     * The phone patch's `SponsorSegment.containsSegment`: [inner] sits entirely inside [outer] —
+     * the test its own offer loop uses to descend to the innermost nested segment.
+     */
+    private static boolean containsSegment(SponsorSegment outer, SponsorSegment inner) {
+        return outer.startMs <= inner.startMs && inner.endMs <= outer.endMs;
     }
 
     /**
