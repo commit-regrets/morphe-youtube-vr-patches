@@ -1094,12 +1094,34 @@ offered while something nested inside it is available, which is the point of the
 that merely overlap, neither containing the other, keep the earliest-starting one, because nothing
 replaces the first candidate — and that was this port's rule for *every* case before this change.
 
-**One rough edge, recorded rather than fixed** (found by reading the code while answering the
-question, not measured): the offer is published *before* the auto-skip loop runs in the same tick, so
-where a `manual-skip` segment overlaps an **auto-skip** one the button can be raised for a moment and
-then have the playhead yanked past it. It is cosmetic — the skip itself is unaffected, because an
-auto-skip segment inside a manual-skip one still fires the moment the playhead enters it — and it is
-left alone until someone sees it in the headset.
+**One tick, one decision.** The offer used to be published *and* an automatic skip requested in the
+same tick, which left the button up for a `manual-skip` segment the app was seeking past — up to a
+full tick (~500 ms) before the next tick took it away, and a button that appears and vanishes with
+nothing pressed reads as a glitch. Found by reading the code while answering "what happens if I set
+Show a Skip button on several categories"; the skip is now decided **first**, and a tick that skips
+publishes no offer at all. The `playheadAdvanced` guard that used to sit around the skip loop moved
+with it, so the skip cadence is unchanged — only the ordering is.
+
+Both existing decision paths were re-verified on the device afterwards, since the reordering touches
+the tick every skip runs through:
+
+```
+[manual]  segments ready: 3 (0 auto-skip, 3 skip-button, 3 marked)
+          skip button offered: music_offtopic 0.0s->21.808s
+          skip button shown: 'Skip Non-music' for music_offtopic 0.0s->21.808s
+          skip button placed: card=315x72px panel=852px offsetX=-481.5 leftEdge=-639.0px
+          skip button window over (3800 ms) -> offer cleared -> hidden
+[auto]    segments ready: 1 (1 auto-skip, 0 skip-button, 1 marked)
+          skipping sponsor 40.781s->125.339s (position 41027 ms)
+          seek confirmed at 125339 ms (target 125339)
+```
+
+with the crash buffer empty across both. **Not measured, and this is the honest part:** the phantom
+case itself. No readily-available video has an automatic-skip segment overlapping a manual-skip one —
+a scan of 30 popular ids found only one with a `sponsor` segment at all (`P2JjlayovG8`, alone on its
+timeline) — and a local fake API is not an option, because the extension refuses a non-`https` base
+and falls back to the real one. So the fix is reasoned from the code and verified not to regress what
+*is* reachable; the ~500 ms phantom is not something this repo has seen happen in a headset.
 
 **Device verdict — measured end to end (2026-10-14), and confirmed from the headset:**
 
