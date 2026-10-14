@@ -1,3 +1,16 @@
+## [1.27.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.26.0...v1.27.0) (2026-10-14)
+
+### 🐛 Bug Fixes
+
+* **sponsorblock:** bound the stored-default migration, so a cyclic table cannot hang start-up ([11ddf39](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/11ddf396c5384ff75e7f9b79ad42a84a6d84756a))
+* **sponsorblock:** make the five-option behaviour picker actually fit the card ([6bb3eaa](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/6bb3eaa74409dccaea966d4381e193c7f4661b69))
+* **sponsorblock:** offer the innermost nested segment, as the phone patch does ([83d4625](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/83d46253637d7d12ad63d73361831af4de0222d2))
+* **sponsorblock:** one decision per tick, so a skip never also raises the button ([5292038](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/529203827cfcdd2cfab812c88e2a279d9d932646))
+
+### ✨ New Features
+
+* **sponsorblock:** implement "Show a Skip button", in the app's own skip-Ad card ([d2b6b9d](https://github.com/commit-regrets/morphe-youtube-vr-patches/commit/d2b6b9d5e3c558e86244e3632c68145775ca57d8))
+
 ## [1.26.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/compare/v1.25.0...v1.26.0) (2026-10-13)
 
 ### 🐛 Bug Fixes
