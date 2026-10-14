@@ -76,16 +76,12 @@ something we tested.
   `mqx.r` and `mgn.g` included — and, unlike blanking the response's field, mutates nothing the
   playback director holds (blanking it was measured to reset it: `bestVideoFormat=0`,
   `STOPPAGE_DIRECTOR_RESET_INTERNALLY`).
-- **The VR180 / immersive ad slot** (`SLOT_TYPE_BELOW_PLAYER_IMMERSIVE` = 9, versus `PLAYER_BYTES` = 1) —
-  **covered by the same fix, statically**. The AdSlotRenderer `mqy.a(vmo, mwh)` iterates *one* slot
-  list and dispatches per type by enum ordinal, with the immersive branch at ordinal 17; that list is
-  the one `mgn.d` returns, so emptying the accessors empties it for every slot type at once. Worth
-  knowing because a public reimplementation of this mod attacks `mqy` directly (stubbing the renderer
-  by name) and therefore advertises "VR180 and 360 immersive ads removed" as a separate feature -- it
-  is the same ad, caught one stage later, because that project never empties the list upstream and so
-  has to kill each renderer it knows about. The static claim rests on the data flow (one list, one
-  loop) and has **not** been confirmed on the device: what it would not cover is an immersive slot
-  obtained through a response field other than `zjp.n`.
+- **Any other ad slot type, the VR180/immersive one included** — **covered by the same fix, statically
+  (not measured)**. Every slot type is carried in the single list `mgn.d` returns; the AdSlotRenderer
+  `mqy.a(vmo, mwh)` walks that one list and dispatches per type by enum ordinal (the immersive branch,
+  `SLOT_TYPE_BELOW_PLAYER_IMMERSIVE` = 9, is ordinal 17), so emptying the accessors empties all of them
+  at once and no per-renderer hook is needed. What would *not* be covered is a slot obtained through a
+  response field other than `zjp.n`.
 - **Quality / resolution preferences, autoplay, background behaviour** — **hypothesis**. These live
   in the player response and the format-selection path; start from the `adaptiveFormats` the VISIONOS
   profile returns and follow what the legacy player selects.
