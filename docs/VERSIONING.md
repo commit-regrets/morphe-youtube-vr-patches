@@ -54,6 +54,35 @@ the bundle version, and the `Applied:` / `Skipping` / `FAILED:` lines (the bug-r
 for exactly this). A report naming the failing patch is usually enough to turn the re-anchoring
 into a lookup against FINGERPRINTS.md.
 
+## How a new version is noticed
+
+`.github/workflows/check-upstream-version.yml` runs daily at 06:00 UTC and opens an issue when the
+store serves a version the repo does not list. It reads **two** sources, because one of them is not
+what its field name suggests — measured 2026-10-15:
+
+| source | `latest_supported_binary` for channel `LIVE` | what it is |
+|---|---|---|
+| `graph.oculus.com` with this app's own access token | **1.89.09** (binary `28727061943646433`, created 2026-09-29) | the newest binary **uploaded** to the channel |
+| the public store page | **1.88.10** (binary `28655433784142583`) | the binary actually **released** to users |
+
+Same channel id, different binary. Trusting the token's answer filed an issue (#40) for a version
+nobody could download: the store page still offered 1.88.10, and step 1 of the checklist below is
+"obtain the APK". The verdict therefore comes from the **storefront**, and the channel answer is
+reported beside it as the early signal it is — *"uploaded but not released yet"*.
+
+Two consequences worth knowing before reporting a bug in that workflow:
+
+- **The store page needs Meta's crawler UA** (`facebookexternalhit/...`). A browser UA gets HTTP 400,
+  and anything else gets the cookie-consent shell with no app data in it. If Meta ever stops honouring
+  it, the script says so in the run summary and falls back to the channel answer, marked
+  *unconfirmed* — it does not go quiet, because that would miss releases.
+- **The issue title is the dedupe key.** The workflow skips creating an issue whose title already
+  exists, so a false-positive issue left open *masks* the real detection of that same version later.
+  Close a spurious one rather than leaving it.
+
+A storefront version **older** than the newest supported one is a rollback, and is reported in the run
+summary without filing anything.
+
 ## Adding support for a new version (maintainer checklist)
 
 1. Get the APK of that exact version from your own headset (using an on-device backup tool
