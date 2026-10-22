@@ -202,6 +202,7 @@ export function decide({ released, channel, supportedVersions }) {
     confirmed: Boolean(released),
     released,
     channel,
+    supportedVersions,
     newestSupported,
     // "Uploaded to the channel but not on the storefront yet" -- the early signal.
     uploadedNotReleased: Boolean(released) && released.version !== channel.version,
@@ -257,11 +258,12 @@ function describeBinary(binary) {
 
 function generateIssueBody(result) {
   const { released, channel, supportedVersions } = result;
+  const target = released || channel;
   return `### 🚀 Upstream Update Detected
 
 A new version of **YouTube VR** is on the Meta Quest Store:
-- **Version**: \`${released.version}\`
-${released.versionCode ? `- **Version Code**: \`${released.versionCode}\`\n` : ''}- **Package Name**: \`com.google.android.apps.youtube.vr.oculus\`
+- **Version**: \`${target.version}\`
+${target.versionCode ? `- **Version Code**: \`${target.versionCode}\`\n` : ''}- **Package Name**: \`com.google.android.apps.youtube.vr.oculus\`
 - **Store Item ID**: \`${APP_ID}\`
 - **Store Page**: ${STORE_PAGE_URL}
 - **Currently Supported in Repo**: ${supportedVersions.map((v) => `\`${v}\``).join(', ')}
@@ -282,7 +284,7 @@ ${
 - [ ] **1. Obtain the APK**:
   - Back up the APK from headset using Quest Games Optimizer (QGO) or \`adb pull\` (see [\`docs/GETTING-THE-APK.md\`](docs/GETTING-THE-APK.md)).
 - [ ] **2. Register in \`Constants.kt\`**:
-  - Add \`AppTarget(version = "${released.version}", isExperimental = true, description = "Untested: ...")\` to [\`Constants.kt\`](patches/src/main/kotlin/app/ytvr/patches/shared/Constants.kt).
+  - Add \`AppTarget(version = "${target.version}", isExperimental = true, description = "Untested: ...")\` to [\`Constants.kt\`](patches/src/main/kotlin/app/ytvr/patches/shared/Constants.kt).
 - [ ] **3. Test with diagnostics**:
   - Apply patch bundle with \`-OenableDiagnostics=true --force --continue-on-error\`.
   - Check which fingerprints fail in the patcher log.
