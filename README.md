@@ -100,7 +100,7 @@ on first launch; the headset row governs from the first change there.
 
 Skips crowd-sourced segments from [sponsor.ajay.app](https://sponsor.ajay.app) while a video plays.
 **It is on by default**, with upstream's recommended configuration (`sponsor` = `skip-once`;
-`selfpromo`/`interaction`/`highlight`/`intro`/`outro`/`music_offtopic` = `seekbar-only`;
+`selfpromo`/`interaction`/`highlight`/`intro`/`outro`/`music_offtopic` = `manual-skip`;
 `preview`/`hook`/`filler` = `ignore`), configurable per category in the headset's Patch settings and at
 build time (a self-hosted API instance works too). Segments are also drawn **on the VR seek bar** in
 their category colours, so you can see what is coming and where a segment was skipped.
