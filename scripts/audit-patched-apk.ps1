@@ -46,7 +46,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-if (-not $Work) { $Work = Join-Path $Root 'build\probe\audit' }
+# Forward slashes: on Linux a backslash is a filename character, and Join-Path would build a
+# directory literally named 'build\probe\audit' (bundle mode runs there in CI).
+if (-not $Work) { $Work = Join-Path $Root 'build/probe/audit' }
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 
 $script:failures = 0
@@ -183,25 +185,33 @@ private val fixture = """
     }
 }
 
-# Compiles tools\dexaudit\DexAudit.java against the patcher's own dexlib2 and remembers the
+# Compiles tools/dexaudit/DexAudit.java against the patcher's own dexlib2 and remembers the
 # java command and classpath on the script. Prints nothing: a function's output is its return
 # value, and javac's chatter would be joined onto that. Defined before bundle mode: a script
-# does not see a function until execution reaches it.
+# does not see a function until execution reaches it. Cross-platform: bundle mode runs in CI
+# (ubuntu), where USERPROFILE is unset, javac has no .exe, the Gradle cache sits under HOME,
+# and the classpath separator is ':' -- measured as "Cannot bind argument to parameter 'Path'
+# because it is null" on the first CI run that reached here.
 function Initialize-DexAudit {
     if ($script:AuditJava -and $script:AuditClasspath) { return }
-    $javac = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\javac.exe' } else { '' }
+    $isWin = $PSVersionTable.Platform -ne 'Unix'
+    # Forward slashes inside Join-Path children work on both; literal backslashes are only a
+    # Windows path separator and would become filename characters on Linux.
+    $javac = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME "bin/$(if ($isWin) { 'javac.exe' } else { 'javac' })" } else { '' }
     # Not $java: that name shadows the JDK path for every later call in this script.
-    $javaExe = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { '' }
+    $javaExe = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME "bin/$(if ($isWin) { 'java.exe' } else { 'java' })" } else { '' }
     if (-not (Test-Path $javac)) { $javac = (Get-Command javac -ErrorAction SilentlyContinue).Source }
     if (-not (Test-Path $javaExe)) { $javaExe = (Get-Command java -ErrorAction SilentlyContinue).Source }
-    if (-not $javac -or -not $javaExe) { throw 'no JDK found: set JAVA_HOME (javac builds tools\dexaudit)' }
+    if (-not $javac -or -not $javaExe) { throw 'no JDK found: set JAVA_HOME (javac builds tools/dexaudit)' }
 
-    $cache = Join-Path $env:USERPROFILE '.gradle\caches\modules-2\files-2.1'
+    $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+    if (-not $homeDir) { throw 'no home directory: set USERPROFILE (Windows) or HOME (Linux)' }
+    $cache = Join-Path $homeDir '.gradle/caches/modules-2/files-2.1'
     $jars = @()
     # One jar per artifact: a patcher bump leaves the previous version in modules-2, and
     # putting every cached copy on the classpath lets Get-ChildItem order pick the winner.
     # The newest file is the one Gradle fetched last.
-    foreach ($group in @('com.github.MorpheApp.smali\smali-dexlib2', 'com.github.MorpheApp.smali\smali-util', 'com.google.guava\guava')) {
+    foreach ($group in @('com.github.MorpheApp.smali/smali-dexlib2', 'com.github.MorpheApp.smali/smali-util', 'com.google.guava/guava')) {
         $dir = Join-Path $cache $group
         if (Test-Path $dir) {
             $jar = Get-ChildItem -Path $dir -Recurse -Filter '*.jar' |
@@ -212,18 +222,19 @@ function Initialize-DexAudit {
         }
     }
     if ($jars.Count -eq 0) { throw 'dexlib2/guava not in the Gradle cache: run a build once so Gradle fetches them' }
-    $classpath = ($jars -join ';')
+    $classpathSep = if ($isWin) { ';' } else { ':' }
+    $classpath = ($jars -join $classpathSep)
 
     $out = Join-Path $Work 'dexaudit'
     New-Item -ItemType Directory -Force -Path $out | Out-Null
-    $toolSource = Join-Path $Root 'tools\dexaudit\DexAudit.java'
+    $toolSource = Join-Path $Root 'tools/dexaudit/DexAudit.java'
     $toolClass = Join-Path $out 'DexAudit.class'
     if (-not (Test-Path $toolClass) -or (Get-Item $toolSource).LastWriteTime -gt (Get-Item $toolClass).LastWriteTime) {
         & $javac -cp $classpath -d $out $toolSource | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw 'tools\dexaudit\DexAudit.java did not compile' }
+        if ($LASTEXITCODE -ne 0) { throw 'tools/dexaudit/DexAudit.java did not compile' }
     }
     $script:AuditJava = $javaExe
-    $script:AuditClasspath = "$out;$classpath"
+    $script:AuditClasspath = "$out$classpathSep$classpath"
 }
 
 # ---------------------------------------------------------------------------------------------
