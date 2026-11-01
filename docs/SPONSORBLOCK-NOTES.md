@@ -15,7 +15,7 @@ accessor, seek result) were answered while building, by the bridge methods the p
 the player wrapper and by the `onSeeked` hook respectively. `git log` has the removed text if a
 design question it debated ever comes back.*
 
-*Measured against YouTube VR 1.88.10 (the version this repo supports).*
+*Measured against YouTube VR 1.88.10.*
 
 ## 1. The feature and its API contract
 
