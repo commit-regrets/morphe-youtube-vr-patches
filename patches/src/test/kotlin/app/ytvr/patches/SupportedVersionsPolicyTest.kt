@@ -9,8 +9,9 @@ import java.io.File
  * The supported-version policy, enforced mechanically rather than remembered: at most two normal
  * `AppTarget`s (the latest two), each with a `// Kept: <reason>` comment directly above it, and
  * `SUPPORTED_APP_VERSION` pointing at the newest of them. The test reads `Constants.kt` the same
- * way `scripts/check-upstream-version.mjs` does, so a change that would blind that parser also
- * fails here.
+ * way the shared JS reader `scripts/supported-versions.mjs` does -- the parser behind both
+ * `scripts/check-upstream-version.mjs` and the release-notes plugin -- so a change that would
+ * blind that parser also fails here.
  *
  * The pruning rule exists because the two name-pinned fingerprints (the ad-slot accessors and the
  * seek-bar ids) grow one branch per supported version; an unbounded list makes them unbounded too,
