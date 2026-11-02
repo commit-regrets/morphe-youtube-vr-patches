@@ -68,7 +68,11 @@ class SupportedVersionsPolicyTest {
         return result
     }
 
-    private fun isExperimental(body: String) = body.contains("isExperimental")
+    // The assignment, in the header only (before `description`): a description string can
+    // legitimately contain assignment-shaped text, and a bare word anywhere must not classify a
+    // normal target (and then exclude it from the two-target count) as experimental. The JS
+    // reader (scripts/supported-versions.mjs) applies the same rule to the same span.
+    private fun isExperimental(body: String) = body.substringBefore("description").contains(Regex("isExperimental\\s*=\\s*true"))
 
     private fun versionOf(body: String): String {
         val match = Regex("version\\s*=\\s*\"([^\"]+)\"").find(body)

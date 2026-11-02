@@ -16,6 +16,13 @@
 import { CONSTANTS_FILE, parseTargets, renderSupportedVersionsSection, readSupportedVersionsFile } from '../../scripts/supported-versions.mjs';
 
 export default {
-  generateNotes: async () =>
-    renderSupportedVersionsSection(parseTargets(readSupportedVersionsFile(CONSTANTS_FILE))),
+  /**
+   * `pluginConfig.file` overrides the Constants.kt path. Nothing in .releaserc.js sets it; it
+   * exists so the test suite can run THIS module (the one the release runs) against a synthetic
+   * Constants.kt instead of only the pure parser it wraps.
+   */
+  generateNotes: async (pluginConfig) =>
+    renderSupportedVersionsSection(
+      parseTargets(readSupportedVersionsFile(pluginConfig?.file ?? CONSTANTS_FILE))
+    ),
 };

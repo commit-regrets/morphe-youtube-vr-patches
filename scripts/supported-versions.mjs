@@ -45,13 +45,20 @@ export function parseTargets(content) {
   const targets = [];
   let match;
   while ((match = versionRegex.exec(content)) !== null) {
-    // The target's body runs to its closing `),`; `isExperimental` anywhere in it flags it. The
-    // regex's line-by-line counterpart in Kotlin collects the same span, so the two agree even on
-    // a target whose description merely mentions the word (none does today).
+    // The target's body runs to its closing `),`; only the assignment `isExperimental = true`
+    // flags it, and only in the header (before `description`): a description string can
+    // legitimately contain assignment-shaped text, and a bare word anywhere would misclassify a
+    // normal target that merely mentions it. The counterpart in SupportedVersionsPolicyTest
+    // applies the same rule to the same span, so the two readers stay in agreement.
     const bodyStart = match.index;
     const bodyEnd = content.indexOf('),', match.index);
     const body = bodyEnd >= 0 ? content.slice(bodyStart, bodyEnd) : '';
-    targets.push({ version: match[1], experimental: body.includes('isExperimental') });
+    const headerEnd = body.indexOf('description');
+    const header = headerEnd >= 0 ? body.slice(0, headerEnd) : body;
+    targets.push({
+      version: match[1],
+      experimental: /isExperimental\s*=\s*true/.test(header),
+    });
   }
   return targets;
 }
