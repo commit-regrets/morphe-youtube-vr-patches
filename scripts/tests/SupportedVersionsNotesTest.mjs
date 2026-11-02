@@ -226,9 +226,18 @@ try {
 
 // ---- the .releaserc.js wiring -------------------------------------------------
 
-// Every local module path the release config names must exist and load, and expose either a
-// generateNotes (plugin) or a default function (preset/config). A rename or a typo in
-// .releaserc.js otherwise surfaces only inside the release run.
+// Every local module path the release config names must exist and expose either a generateNotes
+// (plugin) or a default function (preset/config). A rename or a typo in .releaserc.js otherwise
+// surfaces only inside the release run.
+//
+// build.yml installs no npm dependencies (its script tests are deliberately dependency-free), so
+// a module that imports the release toolchain -- the changelog preset and its
+// conventional-changelog-conventionalcommits -- cannot be loaded here. That module's full load
+// check is release.yml's job: npm ci runs first, and release-debug.mjs resolves the preset, the
+// writer, and renders through it before anything publishes. Here a missing third-party package
+// while the toolchain is absent is a stated skip, never a silent pass; any other load failure
+// fails.
+const toolchainInstalled = fs.existsSync(path.join(REPO_ROOT, 'node_modules', 'semantic-release'));
 const rc = (await import(pathToFileURL(path.join(REPO_ROOT, '.releaserc.js')).href)).default;
 const localPaths = [];
 (function walk(node) {
@@ -249,11 +258,25 @@ for (const localPath of localPaths) {
     check(`wiring: ${localPath} exists`, false);
     continue;
   }
-  const loaded = await import(pathToFileURL(absolute).href);
-  const usable =
-    typeof loaded.default === 'function' ||
-    (loaded.default && typeof loaded.default.generateNotes === 'function');
-  check(`wiring: ${localPath} loads and exports a usable module`, Boolean(usable));
+  check(`wiring: ${localPath} exists`, true);
+  try {
+    const loaded = await import(pathToFileURL(absolute).href);
+    const usable =
+      typeof loaded.default === 'function' ||
+      (loaded.default && typeof loaded.default.generateNotes === 'function');
+    check(`wiring: ${localPath} loads and exports a usable module`, Boolean(usable));
+  } catch (error) {
+    if (!toolchainInstalled && error?.code === 'ERR_MODULE_NOT_FOUND') {
+      console.log(
+        `  note  wiring: ${localPath} needs the release toolchain (npm ci), not installed in ` +
+          'this workflow -- existence asserted here; the load check runs in release.yml ' +
+          '(release-debug.mjs) after npm ci'
+      );
+    } else {
+      check(`wiring: ${localPath} loads and exports a usable module`, false);
+      console.log(error?.stack ?? error);
+    }
+  }
 }
 
 console.log(
