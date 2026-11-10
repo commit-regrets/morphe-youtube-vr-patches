@@ -109,12 +109,18 @@ nobody could download: the store page still offered 1.88.10, and step 1 of the c
 "obtain the APK". The verdict therefore comes from the **storefront**, and the channel answer is
 reported beside it as the early signal it is — *"uploaded but not released yet"*.
 
-Two consequences worth knowing before reporting a bug in that workflow:
+Three consequences worth knowing before reporting a bug in that workflow:
 
 - **The store page needs Meta's crawler UA** (`facebookexternalhit/...`). A browser UA gets HTTP 400,
   and anything else gets the cookie-consent shell with no app data in it. If Meta ever stops honouring
   it, the script says so in the run summary and falls back to the channel answer, marked
   *unconfirmed* — it does not go quiet, because that would miss releases.
+- **The page's rendered "Version + Release Notes" string can lag the payload it ships** — it is not the
+  download decision, and neither is the version installed on your own headset (Quest updates roll out in
+  waves). The checker reads `latest_supported_binary` out of the page payload. So when a report says
+  "the store still shows the old version", re-read the payload and check the device's own update state
+  before concluding the checker filed a false positive. Observed 2026-11-10: the payload was `1.91.10`
+  while a browser's cached render and a headset both showed `1.90.05`.
 - **The issue title is the dedupe key.** The workflow skips creating an issue whose title already
   exists, so a false-positive issue left open *masks* the real detection of that same version later.
   Close a spurious one rather than leaving it.
