@@ -119,8 +119,7 @@ Three consequences worth knowing before reporting a bug in that workflow:
   download decision, and neither is the version installed on your own headset (Quest updates roll out in
   waves). The checker reads `latest_supported_binary` out of the page payload. So when a report says
   "the store still shows the old version", re-read the payload and check the device's own update state
-  before concluding the checker filed a false positive. Observed 2026-11-10: the payload was `1.91.10`
-  while a browser's cached render and a headset both showed `1.90.05`.
+  before concluding the checker filed a false positive.
 - **The issue title is the dedupe key.** The workflow skips creating an issue whose title already
   exists, so a false-positive issue left open *masks* the real detection of that same version later.
   Close a spurious one rather than leaving it.
@@ -130,9 +129,9 @@ summary without filing anything.
 
 ## Adding support for a new version (maintainer checklist)
 
-1. Get the APK of that exact version from your own headset (using an on-device backup tool
-   like Quest Games Optimizer or `adb pull`, see [GETTING-THE-APK.md](GETTING-THE-APK.md)) or with
-   DownQuest for an older build.
+1. Get the APK of that exact version from your own headset (an on-device backup tool like Quest Games
+   Optimizer, or `adb pull` — see [GETTING-THE-APK.md](GETTING-THE-APK.md)), or with DownQuest, which
+   also lists builds your headset has not taken yet as well as older ones.
 2. Add it to `Constants.kt`. While the fingerprints are unverified, add it as
    `isExperimental = true` with a description saying so.
 3. Run the diagnostic probe — `scripts/patch-probe.ps1 -Apk apk/<new>.apk` (it resolves the

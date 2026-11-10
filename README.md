@@ -14,7 +14,9 @@ renames everything per release, so a store update needs re-fingerprinting and an
 
 Add this bundle to Morphe: https://morphe.software/add-source?github=commit-regrets/morphe-youtube-vr-patches
 
-Apply it to your own copy of the YouTube VR APK — it has to come from your own headset:
+Apply it to your own copy of the YouTube VR APK. The easiest source is Morphe Manager itself:
+**Use installed app** at the APK step patches the build already on the headset — no extraction. If
+Manager is not an option, or you need a version your headset has not taken yet, see
 [docs/GETTING-THE-APK.md](docs/GETTING-THE-APK.md). **The defaults are the recommended
 configuration**: the ad-free streaming spoof is on and the development diagnostics are off.
 
