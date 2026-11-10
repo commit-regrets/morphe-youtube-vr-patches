@@ -30,7 +30,8 @@ Two caveats:
 - "Use installed app" patches whatever version the store installed — which is exactly the trap
   the [version rule](#the-version-rule-this-is-the-one-that-bites) below describes. A just-updated
   headset may hold a version the bundle does not list yet.
-- This gets you the *current* build only. For an older one, see Route B.
+- This gets you the *current* build only. For an older build — or one your headset has not taken
+  yet — see Route B.
 
 ### 2. On-device APK backup tool
 
@@ -55,12 +56,21 @@ This is your own licensed copy and involves no third party. For this app the ins
 APK; if `pm path` prints several paths (a base plus config splits), pull all of them — the patcher
 needs one APK.
 
-## Route B — a specific version, via a downgrade tool
+## Route B — a specific version, newer or older, via a downgrade tool
 
-The store only serves the *current* build, and these patches are pinned to one version. To get an
-older one, [DownQuest](https://github.com/ptrpaws/DownQuest) is a browser extension that
-downloads and downgrades Quest/Rift/Go apps through your own Meta session — a third-party tool that
-authenticates as you, so treat it accordingly.
+The store serves whatever build it has rolled out to your account, and these patches are pinned to
+one version. For any other build — an older one, or the newest one before your headset has taken it
+— [DownQuest](https://github.com/ptrpaws/DownQuest) is a browser extension that lists and downloads
+Quest/Rift/Go binaries through your own Meta session. It is a third-party tool that authenticates as
+you, so treat it accordingly.
+
+DownQuest also sees **newer** builds than your store page or headset shows. Measured 2026-11-10: the
+store page rendered `1.90.05` and the headset was still on `1.90.05`, while the page's own payload
+already carried `1.91.10` — and DownQuest listed `1.91.10`. That is the useful case for a version
+bump: with a staged rollout the headset can trail the released binary, and the re-derivation work can
+start from the binary DownQuest has instead of waiting for the device to update. (The version a
+store page *renders* is not the download decision — see
+[VERSIONING.md](VERSIONING.md#how-a-new-version-is-noticed).)
 
 ## The version rule (this is the one that bites)
 
@@ -68,7 +78,7 @@ authenticates as you, so treat it accordingly.
 (`AppTarget`). A build of a different version does **not** fail — the patcher **skips** the patches,
 exits 0, and produces an app with none of the fixes. So:
 
-- Pull a build of the **supported version** (DownQuest can fetch older ones), or
+- Pull a build of the **supported version** (DownQuest can fetch older *and* newer ones), or
 - wait for the fingerprints to be re-derived for the version you have — see
   [FINGERPRINTS.md](FINGERPRINTS.md), which records what has to be re-anchored.
 

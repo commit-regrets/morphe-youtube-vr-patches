@@ -130,9 +130,9 @@ summary without filing anything.
 
 ## Adding support for a new version (maintainer checklist)
 
-1. Get the APK of that exact version from your own headset (using an on-device backup tool
-   like Quest Games Optimizer or `adb pull`, see [GETTING-THE-APK.md](GETTING-THE-APK.md)) or with
-   DownQuest for an older build.
+1. Get the APK of that exact version from your own headset (an on-device backup tool like Quest Games
+   Optimizer, or `adb pull` — see [GETTING-THE-APK.md](GETTING-THE-APK.md)), or with DownQuest, which
+   also lists builds your headset has not taken yet as well as older ones.
 2. Add it to `Constants.kt`. While the fingerprints are unverified, add it as
    `isExperimental = true` with a description saying so.
 3. Run the diagnostic probe — `scripts/patch-probe.ps1 -Apk apk/<new>.apk` (it resolves the
