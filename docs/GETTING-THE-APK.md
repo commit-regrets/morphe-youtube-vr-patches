@@ -64,14 +64,6 @@ one version. For any other build — an older one, or the newest one before your
 Quest/Rift/Go binaries through your own Meta session. It is a third-party tool that authenticates as
 you, so treat it accordingly.
 
-DownQuest also sees **newer** builds than your store page or headset shows. Measured 2026-11-10: the
-store page rendered `1.90.05` and the headset was still on `1.90.05`, while the page's own payload
-already carried `1.91.10` — and DownQuest listed `1.91.10`. That is the useful case for a version
-bump: with a staged rollout the headset can trail the released binary, and the re-derivation work can
-start from the binary DownQuest has instead of waiting for the device to update. (The version a
-store page *renders* is not the download decision — see
-[VERSIONING.md](VERSIONING.md#how-a-new-version-is-noticed).)
-
 ## The version rule (this is the one that bites)
 
 `patches/src/main/kotlin/app/ytvr/patches/shared/Constants.kt` declares the supported version
