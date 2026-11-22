@@ -32,16 +32,16 @@ also tick the official *Clone app* patch in Morphe Manager — with both renamer
 one wins (see [AGENTS.md](AGENTS.md#morphe-manager-the-mechanics-that-are-not-visible-from-here)).
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.31.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/releases/tag/v1.31.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;11 patches total
+> **[v1.32.0](https://github.com/commit-regrets/morphe-youtube-vr-patches/releases/tag/v1.32.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;11 patches total
 <details open>
 <summary>📦 YouTube VR&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
 
 **🎯 Supported versions:**
 
-| 1.91.10 | 1.90.05 |
+| 1.92.11 | 1.91.10 |
 | :---: | :---: |
-| Verified: every fingerprint was re-derived against this build. | Verified: every fingerprint was re-derived against this build. |
+| Verified: every fingerprint was re-derived against this build and playback was verified on a headset. | Verified: every fingerprint was re-derived against this build. |
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
