@@ -5,7 +5,7 @@ Patches for YouTube VR (Meta Quest / Horizon OS), for use with
 
 ## ❓ About
 
-Patches for `com.google.android.apps.youtube.vr.oculus`, pinned to **1.91.10** and **1.90.05**.
+Patches for `com.google.android.apps.youtube.vr.oculus`, pinned to **1.92.11** and **1.91.10**.
 A store update the bundle doesn't cover yet is *skipped*, not broken — the versioning policy is in
 [docs/VERSIONING.md](docs/VERSIONING.md).
 

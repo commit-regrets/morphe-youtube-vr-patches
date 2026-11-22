@@ -1,5 +1,5 @@
 {
-  "version": "1.90.05",
+  "version": "1.92.11",
   "buildOptions": "default (no diagnostics; the diagnostics build adds the innertube route-log site)",
   "note": "Expected extension-injection sites for this app version, from the verified re-derivation build. scripts/check-apk.ps1 re-derives the inventory from the patched APK (DexAudit inventory) and requires exact site-set and call equality. When re-anchoring a new version, generate the new file from that build and review the roles against docs/FINGERPRINTS.md before committing it.",
   "sites": [
@@ -9,12 +9,12 @@
       "role": "preference row binder (category colours + behaviour pickers)"
     },
     {
-      "site": "Laxe;#a",
+      "site": "Laxo;#a",
       "call": "Lapp/ytvr/extension/PotUrls;->onBuild(Ljava/lang/Object;)V",
       "role": "DataSpec build normalisation (media GET fix)"
     },
     {
-      "site": "Lcfq;#h",
+      "site": "Lcgp;#h",
       "call": "Lapp/ytvr/extension/ModSettingsUi;->onSettingsHidden(Ljava/lang/Object;)V",
       "role": "settings fragment view-destroyed (hub deregistration)"
     },
@@ -44,52 +44,52 @@
       "role": "Platypus enable gating (SABR decision)"
     },
     {
-      "site": "Lfna;#b",
+      "site": "Lfob;#b",
       "call": "Lapp/ytvr/extension/PotUrls;->onAdCountdown(I)V",
       "role": "skip-ad countdown 1 (ad-on-screen signal)"
     },
     {
-      "site": "Lfzg;#ad",
+      "site": "Lgas;#ad",
       "call": "Lapp/ytvr/extension/ModSettingsUi;->onSettingsShown(Ljava/lang/Object;)V",
       "role": "settings holder view-created (hub registration)"
     },
     {
-      "site": "Lguk;#<init>",
+      "site": "Lgxj;#<init>",
       "call": "Lapp/ytvr/extension/SkipButtonCard;->attachActivity(Ljava/lang/Object;)V",
       "role": "skip-Ad button constructor (SkipButtonCard host)"
     },
     {
-      "site": "Lguk;#b",
+      "site": "Lgxj;#b",
       "call": "Lapp/ytvr/extension/PotUrls;->onAdCountdown(I)V",
       "role": "skip-ad countdown 2 (ad-on-screen signal)"
     },
     {
-      "site": "Lgum;#<init>",
+      "site": "Lgxl;#<init>",
       "call": "Lapp/ytvr/extension/SponsorBlockOverlay;->attach(Landroid/view/View;)V",
       "role": "seek-bar binder constructor (overlay attach)"
     },
     {
-      "site": "Lgum;#e",
+      "site": "Lgxl;#e",
       "call": "Lapp/ytvr/extension/SponsorBlockOverlay;->onTimeline(JJJJ)V",
       "role": "seek-bar timeline update (marker geometry)"
     },
     {
-      "site": "Lmnd;#a",
+      "site": "Lmmb;#a",
       "call": "Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V",
       "role": "PlayerBytes layout bootstrap (neutered)"
     },
     {
-      "site": "Lmwk;#a",
+      "site": "Lmvj;#a",
       "call": "Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V",
       "role": "PlayerBytes slot detector (reports no slot)"
     },
     {
-      "site": "Lmwp;#a",
+      "site": "Lmvo;#a",
       "call": "Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V",
       "role": "ad-break renderer (empty-list early return site)"
     },
     {
-      "site": "Lnrk;#a",
+      "site": "Lnqk;#a",
       "call": "Lapp/ytvr/extension/QuicTransport;->quicEnabled()Z",
       "role": "Cronet engine builder QUIC gate"
     },
@@ -99,47 +99,47 @@
       "role": "Cronet request filter (ad creative / tracker rewrite)"
     },
     {
-      "site": "Losz;#<init>",
+      "site": "Lotp;#<init>",
       "call": "Lapp/ytvr/extension/SpoofStreams;->augmentPlayerResponse(Ljava/lang/Object;)V",
       "role": "streaming-data constructor (spoof augment; SB player-response capture)"
     },
     {
-      "site": "Lpua;#<init>",
+      "site": "Lpuu;#<init>",
       "call": "Lapp/ytvr/extension/SpoofStreams;->umpRewriteAllowed(I)I",
       "role": "media data-source constructor (UMP rewrite gate)"
     },
     {
-      "site": "Lpyf;#k",
+      "site": "Lpyj;#m",
       "call": "Lapp/ytvr/extension/SponsorSkipController;->onPaused()V",
       "role": "player state: paused"
     },
     {
-      "site": "Lpyf;#o",
+      "site": "Lpyj;#r",
       "call": "Lapp/ytvr/extension/SponsorSkipController;->onPlaying()V",
       "role": "player state: playing"
     },
     {
-      "site": "Lpyf;#u",
+      "site": "Lpyj;#x",
       "call": "Lapp/ytvr/extension/SponsorSkipController;->onSeeked(J)V",
       "role": "player state: seeked"
     },
     {
-      "site": "Lpyf;#w",
+      "site": "Lpyj;#z",
       "call": "Lapp/ytvr/extension/SponsorSkipController;->onStopped()V",
       "role": "player state: stopped"
     },
     {
-      "site": "Lpyg;#j",
+      "site": "Lpyk;#k",
       "call": "Lapp/ytvr/extension/SponsorSkipController;->onLoadVideo(Ljava/lang/Object;)V",
       "role": "player handover: loadVideo (capture, reset, fetch)"
     },
     {
-      "site": "Lscr;#<init>",
+      "site": "Lsel;#<init>",
       "call": "Lapp/ytvr/extension/VideoQuality;->fixInitialResolution(Ljava/lang/Object;)Ljava/lang/Object;",
       "role": "video-quality constructor (starting resolution)"
     },
     {
-      "site": "Lubp;#q",
+      "site": "Lues;#s",
       "call": "Lapp/ytvr/extension/PotUrls;->onAdPath(Ljava/lang/String;)V",
       "role": "ad-break request (fetch neutralised)"
     }
